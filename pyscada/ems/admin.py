@@ -237,10 +237,12 @@ class MeteringPointAdmin(admin.ModelAdmin):
 
 
 class VirtualMeteringPointAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "utility", "category", "comment")
+    list_display = ("id", "name", "utility", "category", "group", "comment")
     list_display_links = ("id",)
     list_editable = ("comment",)
-    list_filter = ["utility", "category"]
+    list_filter = [ "utility",
+                    "category",
+                    "group",]
     search_fields = [
         "name",
         "comment",
@@ -342,6 +344,16 @@ class VirtualMeteringPointCategoryAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = True
 
+class VirtualMeteringPointGroupAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "name",
+    )
+    list_display_links = ("id",)
+    # list_editable = ('name',)
+    # filter_horizontal = ('name',)
+    save_as = True
+    save_as_continue = True
 
 class DataEntryFormAdmin(admin.ModelAdmin):
     inlines = [DataEntryFormElementInline]
@@ -357,7 +369,9 @@ admin_site.register(Building, BuildingAdmin)
 admin_site.register(Location)
 admin_site.register(EnergyReading, EnergyReadingAdmin)
 admin_site.register(Utility, UtilityAdmin)
-admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
+
 admin_site.register(AttributeKey)
 admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
+admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
+admin_site.register(VirtualMeteringPointGroup, VirtualMeteringPointGroupAdmin)
 admin_site.register(DataEntryForm, DataEntryFormAdmin)

@@ -34,6 +34,8 @@ class BuildingCategory(ListElement):
 class VirtualMeteringPointCategory(ListElement):
     pass
 
+class VirtualMeteringPointGroup(ListElement):
+    pass
 
 class Address(models.Model):
     street = models.CharField(max_length=255)
@@ -141,7 +143,9 @@ class VirtualMeteringPoint(MeteringPointProto):
     category = models.ForeignKey(
         VirtualMeteringPointCategory, on_delete=models.CASCADE, null=True, blank=True
     )
-
+    group = models.ForeignKey(
+        VirtualMeteringPointGroup, on_delete=models.CASCADE, null=True, blank=True
+    )
     def __str__(self):
         return f"{self.name} ({self.utility.name if self.utility else '-'})"
 
