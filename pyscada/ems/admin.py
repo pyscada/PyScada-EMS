@@ -324,7 +324,7 @@ class UtilityAdmin(admin.ModelAdmin):
         "id",
         "name",
     )
-    list_display_links = ("id",)
+    list_display_links = ("name",)
     # list_editable = ('name',)
     # filter_horizontal = ('name',)
     save_as = True
