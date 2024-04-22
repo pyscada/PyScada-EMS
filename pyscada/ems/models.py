@@ -24,6 +24,10 @@ class BuildingCategory(ListElement):
     pass
 
 
+class VirtualMeteringPointCategory(ListElement):
+    pass
+
+
 class Address(models.Model):
     street = models.CharField(max_length=255)
     zip = models.CharField(max_length=10)
@@ -132,6 +136,7 @@ class VirtualMeteringPoint(MeteringPointProto):
     calculation = models.TextField(default="", blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
+    category = models.ForeignKey(VirtualMeteringPointCategory, on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self):
             return f"{self.name}"
