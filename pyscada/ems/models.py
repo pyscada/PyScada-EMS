@@ -112,7 +112,7 @@ class MeteringPoint(MeteringPointProto):
     location = models.ManyToManyField(Building, blank=True)
     higher_level_metering_points = models.ManyToManyField("MeteringPoint", blank=True)
     def __str__(self):
-            return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int_old',flat=True)))}"
+            return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int_old',flat=True)))} ({self.utility.name if self.utility else '-'})"
 
     class Meta:
         ordering = ('name',)
@@ -139,7 +139,7 @@ class VirtualMeteringPoint(MeteringPointProto):
     category = models.ForeignKey(VirtualMeteringPointCategory, on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self):
-            return f"{self.name}"
+            return f"{self.name} ({self.utility.name if self.utility else '-'})"
 
     class Meta:
         ordering = ('name',)
@@ -175,9 +175,7 @@ class EnergyMeterVariable(models.Model):
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
     variable = models.OneToOneField(Variable, on_delete=models.CASCADE)
     def __str__(self):
-        if self.variable.short_name != '':
-            return f"{self.energy_meter.metering_point.name}-{self.variable.name}-{self.variable.short_name}-{self.value_type}"
-        return f"{self.energy_meter.metering_point.name}-{self.variable.name}-{self.value_type}"
+        return f"{self.variable.name}"
 
     @property
     def label(self):

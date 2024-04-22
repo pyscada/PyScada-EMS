@@ -121,10 +121,10 @@ class MeteringPointAdmin(admin.ModelAdmin):
 
 
 class VirtualMeteringPointAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name',  'utility','comment',)
+    list_display = ('id', 'name',  'utility','category','comment')
     list_display_links = ('id',)
-    list_editable = ('utility','comment',)
-    list_filter = ['utility',]
+    list_editable = ('comment',)
+    list_filter = ['utility','category']
     search_fields = ['name', 'comment',]
     save_as = True
     save_as_continue = True
@@ -192,6 +192,8 @@ class EnergyMeterVariableAdmin(admin.ModelAdmin):
     def get_form(self, request, obj=None, **kwargs):
         form = super(EnergyMeterVariableAdmin, self).get_form(request, obj, **kwargs)
         form.base_fields['variable'].queryset = Variable.objects.filter(energymetervariable=None) # Only show variables that are not already connected to a energymeterdatapoint
+        if obj is not None:
+            form.base_fields['variable'].queryset |= Variable.objects.filter(pk=obj.variable_id) # add the selected value if ther is none
         return form
 
 
