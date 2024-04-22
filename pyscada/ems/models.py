@@ -40,7 +40,22 @@ class Address(models.Model):
         ordering = ["street"]
 
 
+class Building(models.Model):
+    number = models.IntegerField(unique=True)
+    name = models.CharField(max_length=255)
+    short_name = models.CharField(max_length=25)
+    contruction_date = models.DateField()
+    category = models.ForeignKey(BuildingCategory, on_delete=models.CASCADE)
+    site = models.CharField(max_length=255)
+    address = models.ForeignKey(Address, on_delete=models.CASCADE, null=True)
+    comment = models.TextField(blank=True, default="")
+
+    def __str__(self):
+        return "%s (%d)" % (self.short_name, self.number)
+
+
 class BuildingInfo(models.Model):
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, null=True)
     periode_from = models.DateField()
     periode_to = models.DateField()
     cost_unit = models.CharField(max_length=255)
@@ -52,21 +67,6 @@ class BuildingInfo(models.Model):
     area_VF_9 = models.FloatField()
     nb_floors = models.FloatField()
     nb_rooms = models.FloatField()
-
-
-class Building(models.Model):
-    number = models.IntegerField(unique=True)
-    name = models.CharField(max_length=255)
-    short_name = models.CharField(max_length=25)
-    contruction_date = models.DateField()
-    category = models.ForeignKey(BuildingCategory, on_delete=models.CASCADE)
-    site = models.CharField(max_length=255)
-    info = models.ManyToManyField(BuildingInfo)
-    address = models.ForeignKey(Address, on_delete=models.CASCADE, null=True)
-    comment = models.TextField(blank=True, default="")
-
-    def __str__(self):
-        return "%s (%d)" % (self.short_name, self.number)
 
 
 class AttributeKey(ListElement):

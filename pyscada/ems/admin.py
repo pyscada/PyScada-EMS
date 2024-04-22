@@ -58,6 +58,9 @@ class DataEntryFormElementInline(admin.StackedInline):
     extra = 0
     ordering = ("position",)
 
+class BuildingInfoInline(admin.StackedInline):
+    model = BuildingInfo
+    extra = 0
 
 class EnergyMeterAdmin(admin.ModelAdmin):
     list_display = (
@@ -190,6 +193,7 @@ class BuildingAdmin(admin.ModelAdmin):
     # filter_horizontal = ('short_name','number', 'name', 'contruction_date', 'category__name', 'site', 'address__street', 'address__zip', 'address__town')
     save_as = True
     save_as_continue = True
+    inlines = [BuildingInfoInline]
 
 
 class AddressAdmin(admin.ModelAdmin):
