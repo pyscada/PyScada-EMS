@@ -67,8 +67,7 @@ class EnergyMeterAdmin(admin.ModelAdmin):
         "id",
         "dp_count",
         "id_ext",
-        "id_int_pp",
-        "id_int_old",
+        "id_int",
         "factor",
         "comment",
         "in_operation_from",
@@ -76,8 +75,8 @@ class EnergyMeterAdmin(admin.ModelAdmin):
     )
     list_display_links = ("id",)
     list_editable = ("comment",)
-    list_filter = []
-    search_fields = ["id_ext", "id_int_old", "comment", "metering_point__name"]
+    list_filter = ["metering_point__utility"]
+    search_fields = ["id_ext", "comment", "metering_point__name"]
     save_as = True
     save_as_continue = True
     inlines = [EnergyMeterAttributeInline, EnergyMeterVariableInline]

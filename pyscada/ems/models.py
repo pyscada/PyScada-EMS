@@ -117,7 +117,7 @@ class MeteringPoint(MeteringPointProto):
     higher_level_metering_points = models.ManyToManyField("MeteringPoint", blank=True)
 
     def __str__(self):
-        return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int_old',flat=True)))} ({self.utility.name if self.utility else '-'})"
+        return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int',flat=True)))} ({self.utility.name if self.utility else '-'})"
 
     class Meta:
         ordering = ("name",)
@@ -167,8 +167,7 @@ class VirtualMeteringPointAttribute(Attribute):
 
 class EnergyMeter(models.Model):
     id_ext = models.CharField(max_length=255, blank=True)
-    id_int_old = models.CharField(max_length=255, blank=True)
-    id_int = models.BigIntegerField(blank=True, default=0)
+    id_int = models.CharField(max_length=255, blank=True)
     comment = models.CharField(max_length=255, default="", blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
@@ -178,7 +177,7 @@ class EnergyMeter(models.Model):
     factor = models.FloatField(default=1, blank=True)
 
     def __str__(self):
-        return f"{self.metering_point.name if self.metering_point else '-'} ({self.id_ext}, {self.id_int})"
+        return f"{self.metering_point.name if self.metering_point else '-'}({self.pk}) ({self.id_ext}, {self.id_int})"
 
 
 class EnergyMeterVariableValueType(ListElement):
