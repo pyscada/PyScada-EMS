@@ -15,6 +15,13 @@ class ListElement(models.Model):
         ordering = ["name"]
         abstract = True
 
+class EnergyValue(models.DecimalField):
+    description = "DecimalField (up to 6 decimal places and 24 digits)"
+
+    def __init__(self, *args, **kwargs):
+        kwargs["decimal_places"] = 6
+        kwargs["max_digits"] = 18+kwargs["decimal_places"]
+        super().__init__(*args, **kwargs)
 
 class Utility(ListElement):
     pass
@@ -156,7 +163,7 @@ class EnergyMeter(models.Model):
         MeteringPoint, on_delete=models.CASCADE, null=True, blank=True
     )
     factor = models.FloatField(default=1, blank=True)
-
+    initial_value = EnergyValue(default=0, blank=True)
     def __str__(self):
         return f"{self.metering_point.name if self.metering_point else '-'}({self.pk}) ({self.id_ext}, {self.id_int})"
 
@@ -169,7 +176,12 @@ class EnergyMeterAttribute(Attribute):
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
 
 
+class EnergyReading(models.Model):
+    reading_date = models.DateTimeField(blank=True, null=True, db_index=True) # timestamp of the reading
+    reading = EnergyValue(default=0, blank=True) # upcountig meterreading
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
+    class Meta:
+        ordering = ("reading_date",)
 
 
 class DataEntryForm(models.Model):

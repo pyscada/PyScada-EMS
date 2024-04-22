@@ -129,6 +129,10 @@ class EnergyMeterAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = True
     inlines = [EnergyMeterAttributeInline]
+
+    def dp_count(self, instance):
+        return EnergyReading.objects.filter(energy_meter_id=instance.pk).count()
+
     try:
         for attribute_key in AttributeKey.objects.filter(
             show_in_energymeter_admin=True
@@ -154,16 +158,25 @@ class EnergyMeterAdmin(admin.ModelAdmin):
     except:
         logger.warning(traceback.format_exc())
 
-    def dp_count(self, instance):
-        return RecordedData.objects.filter(variable_id=instance.pk).count()
 
     def id_int_pp(self, instance):
         return add_spaces(f"{instance.id_int}", [2, 6, 11])
+class EnergyReadingAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "reading_date",
+        "reading",
+        "energy_meter",
+    )
+    list_filter = (
+        "energy_meter",
+    )
 
 
 class MeteringPointAdmin(admin.ModelAdmin):
     list_display = (
         "id",
+        "dp_count",
         "name",
         "is_sub_meter",
         "energy_meters",
@@ -183,6 +196,12 @@ class MeteringPointAdmin(admin.ModelAdmin):
     @admin.display
     def energy_meters(self, instance):
         return f"{', '.join(list(instance.energymeter_set.all().values_list('id_int',flat=True)))}, {', '.join(list(instance.energymeter_set.all().values_list('id_ext',flat=True)))}"
+
+    def dp_count(self, instance):
+        count = 0
+        for energy_meter in instance.energymeter_set.all():
+            count += EnergyReading.objects.filter(energy_meter_id=energy_meter.pk).count()
+        return count
 
     try:
         for attribute_key in AttributeKey.objects.filter(
@@ -215,12 +234,6 @@ class MeteringPointAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = True
     inlines = [EnergyMeterInline, MeteringPointAttributeInline]
-
-    def is_sub_meter(self, instance):
-        return instance.higher_level_metering_points.count() > 0
-
-    def energy_meters(self, instance):
-        return f"{', '.join(list(instance.energymeter_set.all().values_list('id_int_old',flat=True)))}, {', '.join(list(instance.energymeter_set.all().values_list('id_ext',flat=True)))}"
 
 
 class VirtualMeteringPointAdmin(admin.ModelAdmin):
@@ -342,6 +355,7 @@ admin_site.register(BuildingInfo, BuildingInfoAdmin)
 admin_site.register(BuildingCategory, BuildingCategoryAdmin)
 admin_site.register(Building, BuildingAdmin)
 admin_site.register(Location)
+admin_site.register(EnergyReading, EnergyReadingAdmin)
 admin_site.register(Utility, UtilityAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
 admin_site.register(AttributeKey)
