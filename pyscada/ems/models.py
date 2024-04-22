@@ -322,7 +322,7 @@ class MeteringPointLocation(models.Model):
 class MeteringPointProto(models.Model):
     name = models.CharField(max_length=255, blank=True, default="")
     utility = models.ForeignKey(
-        Utility, on_delete=models.CASCADE, null=True, blank=True
+        Utility, on_delete=models.CASCADE
     )
     comment = models.CharField(max_length=255, default="", blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
@@ -465,7 +465,7 @@ class VirtualMeteringPoint(MeteringPointProto):
     apply_weather_adjustment = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.name} ({self.utility.name if self.utility else '-'})"
+        return f"{self.name} ({self.utility.name})"
 
 
     def eval(self, start_datetime, end_datetime, interval_length=60*60):
