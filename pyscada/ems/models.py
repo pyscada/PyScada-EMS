@@ -181,8 +181,8 @@ class EnergyMeterAttribute(Attribute):
 
 
 class EnergyReading(models.Model):
-    reading_date = models.DateTimeField(blank=True, null=True, db_index=True) # timestamp of the reading
-    reading = EnergyValue(default=0, blank=True) # upcountig meterreading
+    reading_date = models.DateTimeField(db_index=True) # timestamp of the reading
+    reading = EnergyValue(default=0) # upcountig meterreading
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
     class Meta:
         ordering = ("reading_date",)
