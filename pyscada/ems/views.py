@@ -23,29 +23,31 @@ logger = logging.getLogger(__name__)
 @unauthenticated_redirect
 @requires_csrf_token
 def ems_view(request):
-    base_template = 'base.html'
-    form_template = 'ems_form.html'
-    STATIC_URL = str(settings.STATIC_URL) if hasattr(settings, 'STATIC_URL') else 'static'
+    base_template = "base.html"
+    form_template = "ems_form.html"
+    STATIC_URL = (
+        str(settings.STATIC_URL) if hasattr(settings, "STATIC_URL") else "static"
+    )
     add_context = {}
 
     javascript_files_list = []
     css_files_list = []
 
-
-
     context = {
-        'base_html': base_template,
-        'include': [],
-        'form': {
-            'title': 'this is the Title',
-            'web_id': 100, # should be set later from the Model
-            'uuid': uuid4(),
-            },
-        'user': request.user,
-        'version_string': core_version,
-        'link_target': settings.LINK_TARGET if hasattr(settings, 'LINK_TARGET') else '_blank',
-        'javascript_files_list': javascript_files_list,
-        'css_files_list': css_files_list,
+        "base_html": base_template,
+        "include": [],
+        "form": {
+            "title": "this is the Title",
+            "web_id": 100,  # should be set later from the Model
+            "uuid": uuid4(),
+        },
+        "user": request.user,
+        "version_string": core_version,
+        "link_target": settings.LINK_TARGET
+        if hasattr(settings, "LINK_TARGET")
+        else "_blank",
+        "javascript_files_list": javascript_files_list,
+        "css_files_list": css_files_list,
     }
 
     context.update(add_context)
@@ -56,9 +58,11 @@ def ems_view(request):
 @unauthenticated_redirect
 @requires_csrf_token
 def form_add_data(request, form_id):
-    base_template = 'base.html'
-    form_template = 'ems_form.html'
-    STATIC_URL = str(settings.STATIC_URL) if hasattr(settings, 'STATIC_URL') else 'static'
+    base_template = "base.html"
+    form_template = "ems_form.html"
+    STATIC_URL = (
+        str(settings.STATIC_URL) if hasattr(settings, "STATIC_URL") else "static"
+    )
     add_context = {}
 
     javascript_files_list = []
@@ -68,17 +72,18 @@ def form_add_data(request, form_id):
     except DataEntryForm.DoesNotExist:
         raise Http404("DataEntryForm does not exist")
 
-
     context = {
-        'base_html': base_template,
-        'include': [],
-        'form': form_data,
-        'user': request.user,
-        'uuid': uuid4(),
-        'version_string': core_version,
-        'link_target': settings.LINK_TARGET if hasattr(settings, 'LINK_TARGET') else '_blank',
-        'javascript_files_list': javascript_files_list,
-        'css_files_list': css_files_list,
+        "base_html": base_template,
+        "include": [],
+        "form": form_data,
+        "user": request.user,
+        "uuid": uuid4(),
+        "version_string": core_version,
+        "link_target": settings.LINK_TARGET
+        if hasattr(settings, "LINK_TARGET")
+        else "_blank",
+        "javascript_files_list": javascript_files_list,
+        "css_files_list": css_files_list,
     }
 
     context.update(add_context)
@@ -89,9 +94,11 @@ def form_add_data(request, form_id):
 @unauthenticated_redirect
 @requires_csrf_token
 def form_add_data_submit(request, form_id):
-    base_template = 'base.html'
-    form_template = 'ems_form_submit.html'
-    STATIC_URL = str(settings.STATIC_URL) if hasattr(settings, 'STATIC_URL') else 'static'
+    base_template = "base.html"
+    form_template = "ems_form_submit.html"
+    STATIC_URL = (
+        str(settings.STATIC_URL) if hasattr(settings, "STATIC_URL") else "static"
+    )
     add_context = {}
 
     javascript_files_list = []
@@ -104,15 +111,17 @@ def form_add_data_submit(request, form_id):
     request.POST
 
     context = {
-        'base_html': base_template,
-        'include': [],
-        'form': form_data,
-        'user': request.user,
-        'uuid': uuid4(),
-        'version_string': core_version,
-        'link_target': settings.LINK_TARGET if hasattr(settings, 'LINK_TARGET') else '_blank',
-        'javascript_files_list': javascript_files_list,
-        'css_files_list': css_files_list,
+        "base_html": base_template,
+        "include": [],
+        "form": form_data,
+        "user": request.user,
+        "uuid": uuid4(),
+        "version_string": core_version,
+        "link_target": settings.LINK_TARGET
+        if hasattr(settings, "LINK_TARGET")
+        else "_blank",
+        "javascript_files_list": javascript_files_list,
+        "css_files_list": css_files_list,
     }
 
     context.update(add_context)

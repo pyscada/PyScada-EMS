@@ -32,8 +32,9 @@ class Address(models.Model):
     street = models.CharField(max_length=255)
     zip = models.CharField(max_length=10)
     town = models.CharField(max_length=255)
+
     def __str__(self):
-        return "%s, %s, %s"%(self.street,self.zip, self.town)
+        return "%s, %s, %s" % (self.street, self.zip, self.town)
 
     class Meta:
         ordering = ["street"]
@@ -63,15 +64,17 @@ class Building(models.Model):
     info = models.ManyToManyField(BuildingInfo)
     address = models.ForeignKey(Address, on_delete=models.CASCADE, null=True)
     comment = models.TextField(blank=True, default="")
+
     def __str__(self):
-            return "%s (%d)"%(self.short_name, self.number)
+        return "%s (%d)" % (self.short_name, self.number)
 
 
 class MaLoID(models.Model):
     malo_id = models.CharField(max_length=11)
     address = models.ForeignKey(Address, on_delete=models.CASCADE, null=True)
+
     def __str__(self):
-            return f"{self.malo_id}"
+        return f"{self.malo_id}"
 
 
 class AttributeKey(ListElement):
@@ -81,14 +84,15 @@ class AttributeKey(ListElement):
     show_from_mp_in_em_admin = models.BooleanField(default=False)
 
     def __str__(self):
-            return f"{self.name}({self.pk})"
+        return f"{self.name}({self.pk})"
 
 
 class Attribute(models.Model):
     key = models.ForeignKey(AttributeKey, on_delete=models.CASCADE, null=True)
     value = models.CharField(max_length=255)
+
     def __str__(self):
-            return f"{self.value}"
+        return f"{self.value}"
 
     class Meta:
         abstract = True
@@ -97,25 +101,29 @@ class Attribute(models.Model):
 
 class MeteringPointProto(models.Model):
     name = models.CharField(max_length=255, blank=True, default="")
-    utility = models.ForeignKey(Utility, on_delete=models.CASCADE, null=True, blank=True)
-    comment = models.CharField(max_length=255,default="", blank=True)
+    utility = models.ForeignKey(
+        Utility, on_delete=models.CASCADE, null=True, blank=True
+    )
+    comment = models.CharField(max_length=255, default="", blank=True)
     melo = models.CharField(max_length=33, blank=True, default="DE")
     malo = models.ForeignKey(MaLoID, on_delete=models.CASCADE, null=True, blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
+
     class Meta:
         abstract = True
-        ordering = ('name',)
+        ordering = ("name",)
 
 
 class MeteringPoint(MeteringPointProto):
     location = models.ManyToManyField(Building, blank=True)
     higher_level_metering_points = models.ManyToManyField("MeteringPoint", blank=True)
+
     def __str__(self):
-            return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int_old',flat=True)))} ({self.utility.name if self.utility else '-'})"
+        return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int_old',flat=True)))} ({self.utility.name if self.utility else '-'})"
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
 
 
 class MeteringPointAttribute(Attribute):
@@ -126,21 +134,34 @@ class CalulationSource(models.Model):
     name = models.CharField(max_length=10)
     parent = models.ForeignKey("VirtualMeteringPoint", on_delete=models.CASCADE)
 
-    metering_point =  models.ForeignKey(MeteringPoint, on_delete=models.CASCADE, blank=True, null=True)
-    virtual_metering_point =  models.ForeignKey("VirtualMeteringPoint", on_delete=models.CASCADE, blank=True, null=True, related_name="virtual_metering_point_source")
-    value_type = models.ForeignKey("EnergyMeterVariableValueType", on_delete=models.CASCADE)
+    metering_point = models.ForeignKey(
+        MeteringPoint, on_delete=models.CASCADE, blank=True, null=True
+    )
+    virtual_metering_point = models.ForeignKey(
+        "VirtualMeteringPoint",
+        on_delete=models.CASCADE,
+        blank=True,
+        null=True,
+        related_name="virtual_metering_point_source",
+    )
+    value_type = models.ForeignKey(
+        "EnergyMeterVariableValueType", on_delete=models.CASCADE
+    )
+
 
 class VirtualMeteringPoint(MeteringPointProto):
     calculation = models.TextField(default="", blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
-    category = models.ForeignKey(VirtualMeteringPointCategory, on_delete=models.CASCADE, null=True, blank=True)
+    category = models.ForeignKey(
+        VirtualMeteringPointCategory, on_delete=models.CASCADE, null=True, blank=True
+    )
 
     def __str__(self):
-            return f"{self.name} ({self.utility.name if self.utility else '-'})"
+        return f"{self.name} ({self.utility.name if self.utility else '-'})"
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
 
 
 class VirtualMeteringPointAttribute(Attribute):
@@ -151,13 +172,16 @@ class EnergyMeter(models.Model):
     id_ext = models.CharField(max_length=255, blank=True)
     id_int_old = models.CharField(max_length=255, blank=True)
     id_int = models.BigIntegerField(blank=True, default=0)
-    comment = models.CharField(max_length=255,default="", blank=True)
+    comment = models.CharField(max_length=255, default="", blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
-    metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE, null=True, blank=True)
+    metering_point = models.ForeignKey(
+        MeteringPoint, on_delete=models.CASCADE, null=True, blank=True
+    )
     factor = models.FloatField(default=1, blank=True)
+
     def __str__(self):
-            return f"{self.metering_point.name if self.metering_point else '-'} ({self.id_ext}, {self.id_int})"
+        return f"{self.metering_point.name if self.metering_point else '-'} ({self.id_ext}, {self.id_int})"
 
 
 class EnergyMeterVariableValueType(ListElement):
@@ -169,9 +193,12 @@ class EnergyMeterAttribute(Attribute):
 
 
 class EnergyMeterVariable(models.Model):
-    value_type = models.ForeignKey(EnergyMeterVariableValueType, on_delete=models.CASCADE)
+    value_type = models.ForeignKey(
+        EnergyMeterVariableValueType, on_delete=models.CASCADE
+    )
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
     variable = models.OneToOneField(Variable, on_delete=models.CASCADE)
+
     def __str__(self):
         return f"{self.variable.name}"
 
