@@ -558,6 +558,51 @@ class DataEntryFormElement(models.Model):
         ordering = ["position"]
 
 
+class AttachmentCategory(ListElement):
+    pass
+
+
+class Attachment(models.Model):
+    label = models.CharField(max_length=255)
+    attached_file = models.FileField(upload_to="uploads/%Y/%m/")
+    datetime_changed = models.DateTimeField(auto_now=True, auto_now_add=False)
+    datetime_added = models.DateTimeField(auto_now=False, auto_now_add=True)
+    category = models.ForeignKey(
+            AttachmentCategory, on_delete=models.SET_NULL,
+            blank=True,
+            null=True
+        )
+
+    def __str__(self):
+        return f"{self.label} ({os.path.basename(self.attached_file.name)})"
+
+    class Meta:
+        ordering = ["label", "datetime_added"]
+
+class MeteringPointAttachment(models.Model):
+    metering_point = models.ForeignKey(
+        MeteringPoint, on_delete=models.CASCADE)
+    attachment = models.ForeignKey(
+        Attachment, on_delete=models.CASCADE
+    )
+
+
+class VirtualMeteringPointAttachment(models.Model):
+    virtual_metering_point = models.ForeignKey(
+        VirtualMeteringPoint, on_delete=models.CASCADE)
+    attachment = models.ForeignKey(
+        Attachment, on_delete=models.CASCADE
+    )
+
+
+class EnergyMeterAttachment(models.Model):
+    energy_meter = models.ForeignKey(
+        EnergyMeter, on_delete=models.CASCADE)
+    attachment = models.ForeignKey(
+        Attachment, on_delete=models.CASCADE
+    )
+
+
 class CalulatedMeteringPointEnergyDeltaInterval(models.Model):
     interval_length = models.CharField(max_length=20, default="day", help_text="can be hour, day, month, quater, year or number in seconds")
 

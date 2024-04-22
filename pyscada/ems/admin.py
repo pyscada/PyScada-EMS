@@ -117,6 +117,26 @@ class BuildingInfoInline(admin.StackedInline):
     extra = 0
     show_change_link=True
 
+
+
+class MeteringPointAttachmentInline(admin.StackedInline):
+    model = MeteringPointAttachment
+    extra = 0
+    show_change_link=True
+
+
+class VirtualMeteringPointAttachmentInline(admin.StackedInline):
+    model = VirtualMeteringPointAttachment
+    extra = 0
+    show_change_link=True
+
+
+class EnergyMeterAttachmentInline(admin.StackedInline):
+    model = EnergyMeterAttachment
+    extra = 0
+    show_change_link=True
+
+
 class EnergyMeterAdmin(admin.ModelAdmin):
     list_display = (
         "id",
@@ -134,7 +154,7 @@ class EnergyMeterAdmin(admin.ModelAdmin):
     search_fields = ["id_ext", "comment", "metering_point__name"]
     save_as = True
     save_as_continue = True
-    inlines = [EnergyMeterAttributeInline]
+    inlines = [EnergyMeterAttributeInline, EnergyMeterAttachmentInline]
 
     def dp_count(self, instance):
         return EnergyReading.objects.filter(energy_meter_id=instance.pk).count()
@@ -204,10 +224,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
         return f"{', '.join(list(instance.energymeter_set.all().values_list('id_int',flat=True)))}, {', '.join(list(instance.energymeter_set.all().values_list('id_ext',flat=True)))}"
 
     def dp_count(self, instance):
-        count = 0
-        for energy_meter in instance.energymeter_set.all():
-            count += EnergyReading.objects.filter(energy_meter_id=energy_meter.pk).count()
-        return count
+        return instance.dp_count()
 
     try:
         for attribute_key in AttributeKey.objects.filter(
@@ -239,7 +256,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
     ]
     save_as = True
     save_as_continue = True
-    inlines = [EnergyMeterInline, MeteringPointAttributeInline]
+    inlines = [EnergyMeterInline, MeteringPointAttributeInline, MeteringPointAttachmentInline]
 
 
 class VirtualMeteringPointAdmin(admin.ModelAdmin):
@@ -255,7 +272,7 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
     ]
     save_as = True
     save_as_continue = True
-    inlines = [VirtualMeteringPointAttributeInline]
+    inlines = [VirtualMeteringPointAttributeInline, VirtualMeteringPointAttachmentInline]
 
 
 class BuildingAdmin(admin.ModelAdmin):
@@ -393,6 +410,20 @@ class CalulatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
     )
     list_filter = ['interval_length','metering_point']
 
+
+class AttachmentAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "label",
+        "category",
+        "datetime_changed",
+        "datetime_added",
+        "attached_file",
+    )
+    list_display_links = ["id", "label",]
+    list_filter = ['category']
+
+
 admin_site.register(EnergyMeter, EnergyMeterAdmin)
 admin_site.register(MeteringPoint, MeteringPointAdmin)
 admin_site.register(Address, AddressAdmin)
@@ -404,10 +435,17 @@ admin_site.register(EnergyReading, EnergyReadingAdmin)
 admin_site.register(Utility, UtilityAdmin)
 
 
+admin_site.register(Attachment, AttachmentAdmin)
+admin_site.register(AttachmentCategory)
+
 admin_site.register(CalulationUnitArea, CalulationUnitAreaAdmin)
 admin_site.register(CalulationUnitAreaAttribute)
 admin_site.register(CalulationUnitAreaPeriod, CalulationUnitAreaPeriodAdmin)
 admin_site.register(CalulationUnitAreaPart)
+admin_site.register(MeteringPointAttachment)
+admin_site.register(VirtualMeteringPointAttachment)
+admin_site.register(EnergyMeterAttachment)
+
 admin_site.register(AttributeKey)
 admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
