@@ -365,6 +365,15 @@ class DataEntryFormAdmin(admin.ModelAdmin):
     inlines = [DataEntryFormElementInline]
 
 
+class CalulatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "interval_length",
+        "reading_date",
+        "energy_delta",
+        "metering_point",
+    )
+    list_filter = ['interval_length','metering_point']
 
 admin_site.register(EnergyMeter, EnergyMeterAdmin)
 admin_site.register(MeteringPoint, MeteringPointAdmin)
@@ -380,4 +389,7 @@ admin_site.register(AttributeKey)
 admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
 admin_site.register(VirtualMeteringPointGroup, VirtualMeteringPointGroupAdmin)
+
+admin_site.register(CalulatedMeteringPointEnergyDelta, CalulatedMeteringPointEnergyDeltaAdmin)
+admin_site.register(CalulatedMeteringPointEnergyDeltaInterval)
 admin_site.register(DataEntryForm, DataEntryFormAdmin)
