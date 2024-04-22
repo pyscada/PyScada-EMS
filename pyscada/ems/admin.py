@@ -1,8 +1,16 @@
 from django.contrib import admin
-from pyscada.admin import admin_site
+from django.db.models import Count
+from django.db.models import Case, When
 
+from pyscada.admin import admin_site
 from pyscada.ems.models import *
 from pyscada.models import Device, RecordedData, Variable
+
+import traceback
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 
 def add_spaces(wstr, sp_pos):
@@ -21,6 +29,58 @@ def add_spaces(wstr, sp_pos):
 def get_metering_point_attribute_key(instance, key_name):
     return
 
+
+def get_meteringpoint_ordering_by_attribute_key(key_id):
+    key_ids = list(MeteringPoint.objects.filter(meteringpointattribute__key_id=key_id).order_by("meteringpointattribute__value").values_list("pk",flat=True))
+
+    preferred = Case(
+        *(
+            When(pk=id, then=pos)
+            for pos, id in enumerate(key_ids, start=1)
+        )
+    )
+    return preferred
+
+def get_enegrymeter_ordering_by_attribute_key(key_id):
+    key_ids = list(EnergyMeter.objects.filter(energymeterattribute__key_id=key_id).order_by("energymeterattribute__value").values_list("pk",flat=True))
+
+    preferred = Case(
+        *(
+            When(pk=id, then=pos)
+            for pos, id in enumerate(key_ids, start=1)
+        )
+    )
+    return preferred
+
+def get_enegrymeter_ordering_by_meteringpoint_attribute_key(key_id):
+    key_ids = list(EnergyMeter.objects.filter(metering_point__meteringpointattribute__key_id=key_id).order_by("metering_point__meteringpointattribute__value").values_list("pk",flat=True))
+
+    preferred = Case(
+        *(
+            When(pk=id, then=pos)
+            for pos, id in enumerate(key_ids, start=1)
+        )
+    )
+    return preferred
+
+class IsSubMeterFilter(admin.SimpleListFilter):
+    title = 'is sub meter'
+    parameter_name = 'is sub meter'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('Yes', 'Yes'),
+            ('No', 'No'),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        queryset = queryset.annotate(higher_level_metering_points_count=Count('higher_level_metering_points'))
+        if value == 'Yes':
+            return queryset.filter(higher_level_metering_points_count__gt=0)
+        elif value == 'No':
+            return queryset.exclude(higher_level_metering_points_count__gt=0)
+        return queryset
 
 class EnergyMeterInline(admin.StackedInline):
     model = EnergyMeter
@@ -74,7 +134,7 @@ class EnergyMeterAdmin(admin.ModelAdmin):
             show_in_energymeter_admin=True
         ):
 
-            @admin.display(description=attribute_key.name)
+            @admin.display(description=attribute_key.name, ordering=get_enegrymeter_ordering_by_attribute_key(attribute_key.pk))
             def get_attribute_key(instance, key_name=attribute_key.name):
                 return instance.energymeterattribute_set.filter(
                     key__name=key_name
@@ -84,7 +144,7 @@ class EnergyMeterAdmin(admin.ModelAdmin):
 
         for attribute_key in AttributeKey.objects.filter(show_from_mp_in_em_admin=True):
 
-            @admin.display(description=f"MP {attribute_key.name}")
+            @admin.display(description=f"MP {attribute_key.name}", ordering=get_enegrymeter_ordering_by_meteringpoint_attribute_key(attribute_key.pk))
             def get_mp_attribute_key(instance, key_name=attribute_key.name):
                 return instance.metering_point.meteringpointattribute_set.filter(
                     key__name=key_name
@@ -92,7 +152,7 @@ class EnergyMeterAdmin(admin.ModelAdmin):
 
             list_display += (get_mp_attribute_key,)
     except:
-        pass
+        logger.warning(traceback.format_exc())
 
     def dp_count(self, instance):
         return RecordedData.objects.filter(variable_id=instance.pk).count()
@@ -110,12 +170,26 @@ class MeteringPointAdmin(admin.ModelAdmin):
         "utility",
         "comment",
     )
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        qs = qs.annotate(higher_level_metering_points_count=Count('higher_level_metering_points'))
+        return qs
+
+    @admin.display(ordering="higher_level_metering_points_count")
+    def is_sub_meter(self, instance):
+        return instance.higher_level_metering_points_count > 0
+    is_sub_meter.boolean = True
+
+    @admin.display
+    def energy_meters(self, instance):
+        return f"{', '.join(list(instance.energymeter_set.all().values_list('id_int',flat=True)))}, {', '.join(list(instance.energymeter_set.all().values_list('id_ext',flat=True)))}"
+
     try:
         for attribute_key in AttributeKey.objects.filter(
             show_in_meteringpoint_admin=True
         ):
 
-            @admin.display(description=attribute_key.name)
+            @admin.display(description=attribute_key.name, ordering=get_meteringpoint_ordering_by_attribute_key(attribute_key.pk))
             def get_attribute_key(instance, key_name=attribute_key.name):
                 return instance.meteringpointattribute_set.filter(
                     key__name=key_name
@@ -123,7 +197,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
 
             list_display += (get_attribute_key,)
     except:
-        pass
+        logger.warning(traceback.format_exc())
 
     list_display_links = ("id",)
     list_editable = ("comment",)
@@ -132,6 +206,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
     )
     list_filter = [
         "utility",
+        IsSubMeterFilter,
     ]
     search_fields = [
         "name",
