@@ -6,6 +6,7 @@ from pyscada.admin import admin_site
 from pyscada.ems.models import *
 from pyscada.models import Device, RecordedData, Variable
 
+
 import traceback
 import logging
 
@@ -63,6 +64,7 @@ def get_enegrymeter_ordering_by_meteringpoint_attribute_key(key_id):
     )
     return preferred
 
+
 class IsSubMeterFilter(admin.SimpleListFilter):
     title = 'is sub meter'
     parameter_name = 'is sub meter'
@@ -111,6 +113,7 @@ class DataEntryFormElementInline(admin.StackedInline):
     extra = 0
     ordering = ("position",)
     show_change_link=True
+
 
 class BuildingInfoInline(admin.StackedInline):
     model = BuildingInfo
@@ -297,6 +300,7 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
     list_filter = [ "utility",
                     "category",
                     "group",]
+
     search_fields = [
         "name",
         "comment",
@@ -316,6 +320,7 @@ class BuildingAdmin(admin.ModelAdmin):
         "category",
         "site",
     )  # 'address__street', 'address__zip', 'address__town')
+
     list_display_links = (
         "id",
         "short_name",
@@ -398,6 +403,7 @@ class VirtualMeteringPointCategoryAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = True
 
+
 class VirtualMeteringPointGroupAdmin(admin.ModelAdmin):
     list_display = (
         "id",
@@ -408,6 +414,7 @@ class VirtualMeteringPointGroupAdmin(admin.ModelAdmin):
     # filter_horizontal = ('name',)
     save_as = True
     save_as_continue = True
+
 
 class DataEntryFormAdmin(admin.ModelAdmin):
     inlines = [DataEntryFormElementInline]
@@ -497,4 +504,5 @@ admin_site.register(VirtualMeteringPointGroup, VirtualMeteringPointGroupAdmin)
 
 admin_site.register(CalulatedMeteringPointEnergyDelta, CalulatedMeteringPointEnergyDeltaAdmin)
 admin_site.register(CalulatedMeteringPointEnergyDeltaInterval)
+
 admin_site.register(DataEntryForm, DataEntryFormAdmin)

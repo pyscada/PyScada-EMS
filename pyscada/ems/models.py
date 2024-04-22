@@ -127,7 +127,7 @@ class EnergyValue(models.DecimalField):
 
     def __init__(self, *args, **kwargs):
         kwargs["decimal_places"] = 6
-        kwargs["max_digits"] = 18+kwargs["decimal_places"]
+        kwargs["max_digits"] = 18 + kwargs["decimal_places"]
         super().__init__(*args, **kwargs)
 
 class Utility(ListElement):
@@ -319,6 +319,7 @@ class MeteringPointLocation(models.Model):
     def __str__(self):
         return "%s (%s)" % (self.building.short_name, self.room)
 
+
 class MeteringPointProto(models.Model):
     name = models.CharField(max_length=255, blank=True, default="")
     utility = models.ForeignKey(
@@ -457,6 +458,7 @@ class VirtualMeteringPoint(MeteringPointProto):
     category = models.ForeignKey(
         VirtualMeteringPointCategory, on_delete=models.CASCADE, null=True, blank=True
     )
+
     group = models.ForeignKey(
         VirtualMeteringPointGroup, on_delete=models.CASCADE, null=True, blank=True
     )
