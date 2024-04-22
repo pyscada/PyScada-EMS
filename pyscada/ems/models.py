@@ -69,14 +69,6 @@ class Building(models.Model):
         return "%s (%d)" % (self.short_name, self.number)
 
 
-class MaLoID(models.Model):
-    malo_id = models.CharField(max_length=11)
-    address = models.ForeignKey(Address, on_delete=models.CASCADE, null=True)
-
-    def __str__(self):
-        return f"{self.malo_id}"
-
-
 class AttributeKey(ListElement):
     show_in_meteringpoint_admin = models.BooleanField(default=False)
     show_in_energymeter_admin = models.BooleanField(default=False)
@@ -105,8 +97,6 @@ class MeteringPointProto(models.Model):
         Utility, on_delete=models.CASCADE, null=True, blank=True
     )
     comment = models.CharField(max_length=255, default="", blank=True)
-    melo = models.CharField(max_length=33, blank=True, default="DE")
-    malo = models.ForeignKey(MaLoID, on_delete=models.CASCADE, null=True, blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
 
