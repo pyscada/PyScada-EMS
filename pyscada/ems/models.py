@@ -128,6 +128,7 @@ class CalulationSource(models.Model):
 
     metering_point =  models.ForeignKey(MeteringPoint, on_delete=models.CASCADE, blank=True, null=True)
     virtual_metering_point =  models.ForeignKey("VirtualMeteringPoint", on_delete=models.CASCADE, blank=True, null=True, related_name="virtual_metering_point_source")
+    value_type = models.ForeignKey("EnergyMeterVariableValueType", on_delete=models.CASCADE)
 
 class VirtualMeteringPoint(MeteringPointProto):
     calculation = models.TextField(default="", blank=True)
