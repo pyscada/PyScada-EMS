@@ -85,31 +85,37 @@ class IsSubMeterFilter(admin.SimpleListFilter):
 class EnergyMeterInline(admin.StackedInline):
     model = EnergyMeter
     extra = 0
+    show_change_link=True
 
 
 class EnergyMeterAttributeInline(admin.StackedInline):
     model = EnergyMeterAttribute
     extra = 0
+    show_change_link=True
 
 
 class MeteringPointAttributeInline(admin.StackedInline):
     model = MeteringPointAttribute
     extra = 0
+    show_change_link=True
 
 
 class VirtualMeteringPointAttributeInline(admin.StackedInline):
     model = VirtualMeteringPointAttribute
     extra = 0
+    show_change_link=True
 
 
 class DataEntryFormElementInline(admin.StackedInline):
     model = DataEntryFormElement
     extra = 0
     ordering = ("position",)
+    show_change_link=True
 
 class BuildingInfoInline(admin.StackedInline):
     model = BuildingInfo
     extra = 0
+    show_change_link=True
 
 class EnergyMeterAdmin(admin.ModelAdmin):
     list_display = (
@@ -169,6 +175,8 @@ class EnergyReadingAdmin(admin.ModelAdmin):
     list_filter = (
         "energy_meter",
     )
+    save_as = True
+    save_as_continue = True
 
 
 class MeteringPointAdmin(admin.ModelAdmin):
