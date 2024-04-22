@@ -42,17 +42,6 @@ class VirtualMeteringPointAttributeInline(admin.StackedInline):
     extra = 0
 
 
-class CalulationSourceInline(admin.StackedInline):
-    model = CalulationSource
-    fk_name = "parent"
-    extra = 0
-
-
-class EnergyMeterVariableInline(admin.StackedInline):
-    model = EnergyMeterVariable
-    extra = 0
-
-
 class DataEntryFormElementInline(admin.StackedInline):
     model = DataEntryFormElement
     extra = 0
@@ -170,7 +159,7 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
     ]
     save_as = True
     save_as_continue = True
-    inlines = [VirtualMeteringPointAttributeInline, CalulationSourceInline]
+    inlines = [VirtualMeteringPointAttributeInline]
 
 
 class BuildingAdmin(admin.ModelAdmin):

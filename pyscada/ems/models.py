@@ -127,20 +127,6 @@ class MeteringPointAttribute(Attribute):
     metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
 
 
-class CalulationSource(models.Model):
-    name = models.CharField(max_length=10)
-    parent = models.ForeignKey("VirtualMeteringPoint", on_delete=models.CASCADE)
-
-    metering_point = models.ForeignKey(
-        MeteringPoint, on_delete=models.CASCADE, blank=True, null=True
-    )
-    virtual_metering_point = models.ForeignKey(
-        "VirtualMeteringPoint",
-        on_delete=models.CASCADE,
-        blank=True,
-        null=True,
-        related_name="virtual_metering_point_source",
-    )
     value_type = models.ForeignKey(
         "EnergyMeterVariableValueType", on_delete=models.CASCADE
     )
