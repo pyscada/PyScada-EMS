@@ -159,8 +159,6 @@ class EnergyMeterAdmin(admin.ModelAdmin):
         logger.warning(traceback.format_exc())
 
 
-    def id_int_pp(self, instance):
-        return add_spaces(f"{instance.id_int}", [2, 6, 11])
 class EnergyReadingAdmin(admin.ModelAdmin):
     list_display = (
         "id",
