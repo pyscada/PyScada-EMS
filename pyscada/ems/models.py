@@ -631,6 +631,9 @@ class EnergyMeter(models.Model):
 
         return energy_reading.reading_date
 
+    class Meta:
+        ordering = ("metering_point__name","pk")
+
 
 class EnergyMeterVariableValueType(ListElement):
     pass
