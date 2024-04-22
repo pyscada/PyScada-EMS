@@ -207,6 +207,8 @@ class EnergyMeterAdmin(admin.ModelAdmin):
 
             @admin.display(description=f"MP {attribute_key.name}", ordering=get_enegrymeter_ordering_by_meteringpoint_attribute_key(attribute_key.pk))
             def get_mp_attribute_key(instance, key_name=attribute_key.name):
+                if instance.metering_point is None:
+                    return None
                 return instance.metering_point.meteringpointattribute_set.filter(
                     key__name=key_name
                 ).first()
