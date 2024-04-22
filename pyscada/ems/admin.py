@@ -68,7 +68,7 @@ class EnergyMeterAdmin(admin.ModelAdmin):
     search_fields = ["id_ext", "comment", "metering_point__name"]
     save_as = True
     save_as_continue = True
-    inlines = [EnergyMeterAttributeInline, EnergyMeterVariableInline]
+    inlines = [EnergyMeterAttributeInline]
     try:
         for attribute_key in AttributeKey.objects.filter(
             show_in_energymeter_admin=True
@@ -259,20 +259,6 @@ class DataEntryFormAdmin(admin.ModelAdmin):
     inlines = [DataEntryFormElementInline]
 
 
-class EnergyMeterVariableAdmin(admin.ModelAdmin):
-    autocomplete_fields = ("energy_meter",)
-
-    def get_form(self, request, obj=None, **kwargs):
-        form = super(EnergyMeterVariableAdmin, self).get_form(request, obj, **kwargs)
-        form.base_fields["variable"].queryset = Variable.objects.filter(
-            energymetervariable=None
-        )  # Only show variables that are not already connected to a energymeterdatapoint
-        if obj is not None:
-            form.base_fields["variable"].queryset |= Variable.objects.filter(
-                pk=obj.variable_id
-            )  # add the selected value if ther is none
-        return form
-
 
 admin_site.register(EnergyMeter, EnergyMeterAdmin)
 admin_site.register(MeteringPoint, MeteringPointAdmin)
@@ -284,7 +270,5 @@ admin_site.register(Location)
 admin_site.register(Utility, UtilityAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
 admin_site.register(AttributeKey)
-admin_site.register(EnergyMeterVariable, EnergyMeterVariableAdmin)
-admin_site.register(EnergyMeterVariableValueType)
 admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
 admin_site.register(DataEntryForm, DataEntryFormAdmin)

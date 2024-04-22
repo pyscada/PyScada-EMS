@@ -127,11 +127,6 @@ class MeteringPointAttribute(Attribute):
     metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
 
 
-    value_type = models.ForeignKey(
-        "EnergyMeterVariableValueType", on_delete=models.CASCADE
-    )
-
-
 class VirtualMeteringPoint(MeteringPointProto):
     calculation = models.TextField(default="", blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
@@ -174,19 +169,7 @@ class EnergyMeterAttribute(Attribute):
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
 
 
-class EnergyMeterVariable(models.Model):
-    value_type = models.ForeignKey(
-        EnergyMeterVariableValueType, on_delete=models.CASCADE
-    )
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
-    variable = models.OneToOneField(Variable, on_delete=models.CASCADE)
-
-    def __str__(self):
-        return f"{self.variable.name}"
-
-    @property
-    def label(self):
-        return self.variable.short_name or self.energy_meter.metering_point.name
 
 
 class DataEntryForm(models.Model):
@@ -204,7 +187,7 @@ class DataEntryFormElement(models.Model):
     label = models.CharField(max_length=255, blank=True, null=True)
     position = models.SmallIntegerField()
     form = models.ForeignKey(DataEntryForm, on_delete=models.CASCADE)
-    data_point = models.ForeignKey(EnergyMeterVariable, on_delete=models.CASCADE)
+    data_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
 
     def web_id(self):
         return f"ems_form-{self.form.id.__str__()}-{self.id.__str__()}"
@@ -213,7 +196,7 @@ class DataEntryFormElement(models.Model):
         return self.label or self.data_point.label
 
     def web_unit(self):
-        return self.data_point.variable.unit.unit
+        return "fixme"
 
     def previous_value(self):
         return 1234
