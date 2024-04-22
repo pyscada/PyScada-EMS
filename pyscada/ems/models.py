@@ -232,7 +232,6 @@ class CalulationUnitArea(models.Model):
     class Meta:
         ordering = ["name"]
 
-class Location(models.Model):
 
 class CalulationUnitAreaAttribute(Attribute):
     calculation_unit_area = models.ForeignKey(CalulationUnitArea, on_delete=models.CASCADE)
@@ -312,6 +311,7 @@ class WeatherAdjustmentPeriod(models.Model):
     valid_to = models.DateField(null=True, blank=True)
 
 
+class MeteringPointLocation(models.Model):
     building = models.ForeignKey(Building, on_delete=models.CASCADE, null=True)
     room = models.CharField(max_length=255)
     comment = models.TextField(blank=True, default="")
@@ -334,7 +334,7 @@ class MeteringPointProto(models.Model):
 
 
 class MeteringPoint(MeteringPointProto):
-    location = models.ForeignKey(Location, blank=True, null=True, on_delete=models.SET_NULL) # changeme
+    location = models.ForeignKey(MeteringPointLocation, blank=True, null=True, on_delete=models.SET_NULL) # changeme
     higher_level_metering_points = models.ManyToManyField("MeteringPoint", blank=True)
     energy_price = models.ForeignKey(
         EnergyPrice,

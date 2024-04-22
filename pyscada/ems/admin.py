@@ -235,6 +235,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
         "is_sub_meter",
         "energy_meters",
         "utility",
+        "location",
         "comment",
     )
     def get_queryset(self, request):
@@ -277,6 +278,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
     list_filter = [
         "utility",
         IsSubMeterFilter,
+        "location",
         "energy_price"
     ]
     search_fields = [
@@ -465,7 +467,7 @@ admin_site.register(Address, AddressAdmin)
 admin_site.register(BuildingInfo, BuildingInfoAdmin)
 admin_site.register(BuildingCategory, BuildingCategoryAdmin)
 admin_site.register(Building, BuildingAdmin)
-admin_site.register(Location)
+admin_site.register(MeteringPointLocation)
 admin_site.register(EnergyReading, EnergyReadingAdmin)
 admin_site.register(Utility, UtilityAdmin)
 
