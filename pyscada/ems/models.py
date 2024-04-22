@@ -170,7 +170,7 @@ class EnergyMeterAttribute(Attribute):
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
 
 
-class EnergyMeterDataPoint(models.Model):
+class EnergyMeterVariable(models.Model):
     value_type = models.ForeignKey(EnergyMeterVariableValueType, on_delete=models.CASCADE)
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
     variable = models.OneToOneField(Variable, on_delete=models.CASCADE)
@@ -199,7 +199,7 @@ class DataEntryFormElement(models.Model):
     label = models.CharField(max_length=255, blank=True, null=True)
     position = models.SmallIntegerField()
     form = models.ForeignKey(DataEntryForm, on_delete=models.CASCADE)
-    data_point = models.ForeignKey(EnergyMeterDataPoint, on_delete=models.CASCADE)
+    data_point = models.ForeignKey(EnergyMeterVariable, on_delete=models.CASCADE)
 
     def web_id(self):
         return f"ems_form-{self.form.id.__str__()}-{self.id.__str__()}"

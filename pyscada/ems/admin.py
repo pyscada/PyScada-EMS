@@ -45,8 +45,8 @@ class CalulationSourceInline(admin.StackedInline):
     extra = 0
 
 
-class EnergyMeterDataPointInline(admin.StackedInline):
-    model = EnergyMeterDataPoint
+class EnergyMeterVariableInline(admin.StackedInline):
+    model = EnergyMeterVariable
     extra = 0
 
 
@@ -63,7 +63,7 @@ class EnergyMeterAdmin(admin.ModelAdmin):
     search_fields = ['id_ext', 'id_int_old', 'comment','metering_point__name']
     save_as = True
     save_as_continue = True
-    inlines = [EnergyMeterAttributeInline, EnergyMeterDataPointInline]
+    inlines = [EnergyMeterAttributeInline, EnergyMeterVariableInline]
     try:
         for attribute_key in AttributeKey.objects.filter(show_in_energymeter_admin=True):
 
@@ -187,11 +187,11 @@ class DataEntryFormAdmin(admin.ModelAdmin):
     inlines = [DataEntryFormElementInline]
 
 
-class EnergyMeterDataPointAdmin(admin.ModelAdmin):
+class EnergyMeterVariableAdmin(admin.ModelAdmin):
     autocomplete_fields = ('energy_meter',)
     def get_form(self, request, obj=None, **kwargs):
-        form = super(EnergyMeterDataPointAdmin, self).get_form(request, obj, **kwargs)
-        form.base_fields['variable'].queryset = Variable.objects.filter(energymeterdatapoint=None) # Only show variables that are not already connected to a energymeterdatapoint
+        form = super(EnergyMeterVariableAdmin, self).get_form(request, obj, **kwargs)
+        form.base_fields['variable'].queryset = Variable.objects.filter(energymetervariable=None) # Only show variables that are not already connected to a energymeterdatapoint
         return form
 
 
@@ -205,7 +205,7 @@ admin_site.register(Utility, UtilityAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
 admin_site.register(MaLoID)
 admin_site.register(AttributeKey)
-admin_site.register(EnergyMeterDataPoint, EnergyMeterDataPointAdmin)
+admin_site.register(EnergyMeterVariable, EnergyMeterVariableAdmin)
 admin_site.register(EnergyMeterVariableValueType)
 admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
 admin_site.register(DataEntryForm, DataEntryFormAdmin)
