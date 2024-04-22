@@ -452,7 +452,7 @@ class MeteringPointAttribute(Attribute):
 
 
 class VirtualMeteringPoint(MeteringPointProto):
-    calculation = models.TextField(default="", blank=True)
+    calculation = models.TextField(default="", blank=True, help_text="mp(MeteringPoint.pk) for referencing a MeteringPoint, vmp(VirtualMeteringPoint.pk) for referencing a VirtualMeteringPoint")
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
     category = models.ForeignKey(
