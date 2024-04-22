@@ -365,6 +365,24 @@ class DataEntryFormAdmin(admin.ModelAdmin):
     inlines = [DataEntryFormElementInline]
 
 
+class CalulationUnitAreaAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "name",
+    )
+    inlines = [CalulationUnitAreaPartInline, CalulationUnitAreaAttributeInline]
+
+
+class CalulationUnitAreaPeriodAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "label",
+        "valid_from",
+        "valid_to"
+    )
+
+    inlines = []
+
 class CalulatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
     list_display = (
         "id",
@@ -385,6 +403,11 @@ admin_site.register(Location)
 admin_site.register(EnergyReading, EnergyReadingAdmin)
 admin_site.register(Utility, UtilityAdmin)
 
+
+admin_site.register(CalulationUnitArea, CalulationUnitAreaAdmin)
+admin_site.register(CalulationUnitAreaAttribute)
+admin_site.register(CalulationUnitAreaPeriod, CalulationUnitAreaPeriodAdmin)
+admin_site.register(CalulationUnitAreaPart)
 admin_site.register(AttributeKey)
 admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
