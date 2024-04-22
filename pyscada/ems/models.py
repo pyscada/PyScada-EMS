@@ -144,6 +144,45 @@ class VirtualMeteringPointCategory(ListElement):
 class VirtualMeteringPointGroup(ListElement):
     pass
 
+class AttributeKey(ListElement):
+    show_in_meteringpoint_admin = models.BooleanField(default=False)
+    show_in_energymeter_admin = models.BooleanField(default=False)
+    show_in_calculation_unit_area_admin = models.BooleanField(default=False)
+
+    show_from_mp_in_em_admin = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.name}({self.pk})"
+
+
+class FloatAttributeKey(ListElement):
+    pass
+
+
+class Attribute(models.Model):
+    key = models.ForeignKey(AttributeKey, on_delete=models.CASCADE, null=True)
+    value = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.value}"
+
+    class Meta:
+        abstract = True
+        ordering = ["key"]
+
+
+class FloatAttribute(models.Model):
+    key = models.ForeignKey(FloatAttributeKey, on_delete=models.CASCADE, null=True)
+    value = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.value}"
+
+    class Meta:
+        abstract = True
+        ordering = ["key"]
+
+
 class Address(models.Model):
     street = models.CharField(max_length=255)
     zip = models.CharField(max_length=10)
@@ -185,22 +224,10 @@ class BuildingInfo(models.Model):
     nb_rooms = models.FloatField()
 
 
-class AttributeKey(ListElement):
-    show_in_meteringpoint_admin = models.BooleanField(default=False)
-    show_in_energymeter_admin = models.BooleanField(default=False)
-
-    show_from_mp_in_em_admin = models.BooleanField(default=False)
-
     def __str__(self):
         return f"{self.name}({self.pk})"
 
 
-class Attribute(models.Model):
-    key = models.ForeignKey(AttributeKey, on_delete=models.CASCADE, null=True)
-    value = models.CharField(max_length=255)
-
-    def __str__(self):
-        return f"{self.value}"
 
     class Meta:
         abstract = True

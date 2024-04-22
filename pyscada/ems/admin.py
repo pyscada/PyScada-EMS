@@ -447,6 +447,8 @@ admin_site.register(VirtualMeteringPointAttachment)
 admin_site.register(EnergyMeterAttachment)
 
 admin_site.register(AttributeKey)
+admin_site.register(FloatAttributeKey)
+
 admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
 admin_site.register(VirtualMeteringPointGroup, VirtualMeteringPointGroupAdmin)
