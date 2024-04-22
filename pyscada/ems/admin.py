@@ -118,6 +118,24 @@ class BuildingInfoInline(admin.StackedInline):
     show_change_link=True
 
 
+class CalulationUnitAreaPeriodInline(admin.StackedInline):
+    model = CalulationUnitAreaPeriod
+    extra = 0
+    show_change_link=True
+
+
+class CalulationUnitAreaPartInline(admin.StackedInline):
+    model = CalulationUnitAreaPart
+    extra = 0
+    show_change_link=True
+
+
+class CalulationUnitAreaAttributeInline(admin.StackedInline):
+    model = CalulationUnitAreaAttribute
+    extra = 0
+    show_change_link=True
+
+
 
 class MeteringPointAttachmentInline(admin.StackedInline):
     model = MeteringPointAttachment

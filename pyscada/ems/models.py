@@ -224,16 +224,44 @@ class BuildingInfo(models.Model):
     nb_rooms = models.FloatField()
 
 
+class CalulationUnitArea(models.Model):
+    name = models.CharField(max_length=255, default="", blank=True)
     def __str__(self):
-        return f"{self.name}({self.pk})"
-
-
+        return f"{self.name}"
 
     class Meta:
-        abstract = True
-        ordering = ["key"]
+        ordering = ["name"]
 
 class Location(models.Model):
+
+class CalulationUnitAreaAttribute(Attribute):
+    calculation_unit_area = models.ForeignKey(CalulationUnitArea, on_delete=models.CASCADE)
+
+
+class CalulationUnitAreaPeriod(models.Model):
+    label = models.CharField(max_length=255, blank=True, null=True)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(null=True, blank=True)
+    def __str__(self):
+        return f"{self.label} {self.valid_from} - {self.valid_to}"
+
+
+class CalulationUnitAreaPart(FloatAttribute):
+    calculation_unit_area_period = models.ForeignKey(
+        CalulationUnitAreaPeriod,
+        on_delete=models.CASCADE
+    )
+    calculation_unit_area = models.ForeignKey(
+        CalulationUnitArea,
+        on_delete=models.CASCADE
+    )
+    unit = models.ForeignKey(
+        Unit, on_delete=models.CASCADE,
+        blank=True,
+        null=True
+    )
+    def __str__(self):
+        return f"{self.key}: {self.value} {self.unit.unit if self.unit is not None else '-'}"
     building = models.ForeignKey(Building, on_delete=models.CASCADE, null=True)
     room = models.CharField(max_length=255)
     comment = models.TextField(blank=True, default="")
@@ -369,6 +397,13 @@ class VirtualMeteringPoint(MeteringPointProto):
     )
     group = models.ForeignKey(
         VirtualMeteringPointGroup, on_delete=models.CASCADE, null=True, blank=True
+    )
+
+    unit_area = models.ForeignKey(
+        CalulationUnitArea,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
     )
     def __str__(self):
         return f"{self.name} ({self.utility.name if self.utility else '-'})"
