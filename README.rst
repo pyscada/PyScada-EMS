@@ -7,13 +7,18 @@ This is a extension for PyScada to Manage Energy Data.
 What is Working
 ---------------
 
- - nothing is test
-
+ - adding metering points
+ - adding energy meters
+ - adding energy data to energy meters
+ - adding virtual metering points
+ - evaluate calculations for virtual metering points
 
 What is not Working/Missing
 ---------------------------
 
  - Documentation
+ - get energy data from pyscada variables
+ - many more
 
 Installation
 ------------
@@ -24,8 +29,8 @@ Installation
 Contribute
 ----------
 
- - Issue Tracker: https://github.com/pyscada/PyScada-ems/issues
- - Source Code: https://github.com/pyscada/PyScada-ems
+ - Issue Tracker: https://github.com/pyscada/PyScada-EMS/issues
+ - Source Code: https://github.com/pyscada/PyScada-EMS
 
 
 License
