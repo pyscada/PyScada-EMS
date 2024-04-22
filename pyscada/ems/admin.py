@@ -136,6 +136,11 @@ class CalulationUnitAreaAttributeInline(admin.StackedInline):
     show_change_link=True
 
 
+class EnergyPricePeriodInline(admin.StackedInline):
+    model = EnergyPricePeriod
+    extra = 0
+    show_change_link=True
+
 
 class MeteringPointAttachmentInline(admin.StackedInline):
     model = MeteringPointAttachment
@@ -267,6 +272,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
     list_filter = [
         "utility",
         IsSubMeterFilter,
+        "energy_price"
     ]
     search_fields = [
         "name",
@@ -429,6 +435,10 @@ class CalulatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
     list_filter = ['interval_length','metering_point']
 
 
+
+class EnergyPriceAdmin(admin.ModelAdmin):
+    inlines = [EnergyPricePeriodInline]
+
 class AttachmentAdmin(admin.ModelAdmin):
     list_display = (
         "id",
@@ -452,6 +462,8 @@ admin_site.register(Location)
 admin_site.register(EnergyReading, EnergyReadingAdmin)
 admin_site.register(Utility, UtilityAdmin)
 
+admin_site.register(EnergyPrice, EnergyPriceAdmin)
+admin_site.register(EnergyPricePeriod)
 
 admin_site.register(Attachment, AttachmentAdmin)
 admin_site.register(AttachmentCategory)

@@ -262,6 +262,38 @@ class CalulationUnitAreaPart(FloatAttribute):
     )
     def __str__(self):
         return f"{self.key}: {self.value} {self.unit.unit if self.unit is not None else '-'}"
+
+
+class EnergyPrice(models.Model):
+    name = models.CharField(max_length=255, default="", blank=True)
+    unit = models.ForeignKey(
+        Unit,
+        on_delete=models.CASCADE
+    )
+    per_unit = models.ForeignKey(
+        Unit,
+        on_delete=models.CASCADE,
+        related_name="per_unit"
+    )
+    utility = models.ForeignKey(
+        Utility,
+        on_delete=models.CASCADE
+    )
+    # fixme add validation, energy price utility and metering point utility must be equal
+    def __str__(self):
+        return f"{self.name}: {self.utility.name} in {self.unit.unit}/{self.per_unit.unit}"
+
+
+class EnergyPricePeriod(models.Model):
+    energy_price = models.ForeignKey(
+        EnergyPrice,
+        on_delete=models.CASCADE
+    )
+    price = models.DecimalField(max_digits=12, decimal_places=6)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(null=True, blank=True)
+    # fixme add validation, only one energy_price for all periodes
+    # fixme add option to add documents
     building = models.ForeignKey(Building, on_delete=models.CASCADE, null=True)
     room = models.CharField(max_length=255)
     comment = models.TextField(blank=True, default="")
@@ -286,6 +318,12 @@ class MeteringPointProto(models.Model):
 class MeteringPoint(MeteringPointProto):
     location = models.ForeignKey(Location, blank=True, null=True, on_delete=models.SET_NULL) # changeme
     higher_level_metering_points = models.ManyToManyField("MeteringPoint", blank=True)
+    energy_price = models.ForeignKey(
+        EnergyPrice,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True
+    )
 
     def __str__(self):
         return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int',flat=True)))} ({self.utility.name if self.utility else '-'})"
