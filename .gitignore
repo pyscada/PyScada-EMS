@@ -1,0 +1,4 @@
+*.pyc
+/build/*
+/pyscada_systemstat.egg-info/*
+/pyscada_ems.egg-info/*

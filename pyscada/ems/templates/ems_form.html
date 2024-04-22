@@ -1,0 +1,52 @@
+<form name="Master Date" class="form-inline" id="date-master-form-{{ form.web_id }}-{{ uuid }}" style="width:100%;">
+    <input type="datetime-local" class="form-control" id="date-master-{{ form.web_id }}-{{ uuid }}" value="{% now "Y-m-d" %}T{% now "H:i"%}">
+    <button type="submit">Set Date for all Table Entries</button>
+</form>
+
+<form name="{{ form.label }}" class="form-inline" id="{{ form.web_id }}-{{ uuid }}" style="width:100%;" action="/ems/form/add_data/submit/{{ form.pk }}" method="post">
+    {% csrf_token %}
+    <table class="table table-hover table-condensed">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Date</th>
+          <th>Value</th>
+{% if form.show_previous_value %}
+          <th>Previous Value</th>
+{% endif %}
+          <th>Unit</th>
+        </tr>
+      </thead>
+      <tbody>
+{% for item in form.dataentryformelement_set.all %}
+        <tr>
+            <td>{{ item.position }}</th>
+            <td>{{ item.web_label }}</td>
+            <td><input type="datetime-local" class="form-control form-date-input" name="{{ item.web_id }}-date" value="{% now "Y-m-d" %}T{% now "H:i"%}"></th>
+            <td><input type="number" class="form-control" name="{{ item.web_id }}-value" placeholder=""></td>
+{% if form.show_previous_value %}
+            <td><input type="text" class="form-control" id="previous-{{ item.web_id }}" value="{{ item.previous_value }} / {{ item.previous_time }}" disabled></td>
+{% endif %}
+            <td>{{ item.web_unit }}</td>
+        </tr>
+{% endfor %}
+      </tbody>
+    </table>
+    <button type="submit">Add Data</button>
+</form>
+<script type="text/javascript">
+function SetMasterDateTimeForAll(event) {
+    var form_items =  document.getElementById("{{ form.web_id }}-{{ uuid }}");
+    var form_master_date = document.getElementById("date-master-{{ form.web_id }}-{{ uuid }}").value;
+    for(var i=0; i<form_items.length; i++) {
+        if (form_items[i].type === "datetime-local")
+        {
+            form_items[i].value = form_master_date;
+        }
+    }
+    event.preventDefault();
+}
+const form = document.getElementById("date-master-form-{{ form.web_id }}-{{ uuid }}");
+form.addEventListener("submit", SetMasterDateTimeForAll);
+</script>
