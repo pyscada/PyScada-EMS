@@ -90,6 +90,13 @@ class Attribute(models.Model):
         abstract = True
         ordering = ["key"]
 
+class Location(models.Model):
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, null=True)
+    room = models.CharField(max_length=255)
+    comment = models.TextField(blank=True, default="")
+
+    def __str__(self):
+        return "%s (%s)" % (self.building.short_name, self.room)
 
 class MeteringPointProto(models.Model):
     name = models.CharField(max_length=255, blank=True, default="")
@@ -106,7 +113,7 @@ class MeteringPointProto(models.Model):
 
 
 class MeteringPoint(MeteringPointProto):
-    location = models.ManyToManyField(Building, blank=True)
+    location = models.ForeignKey(Location, blank=True, null=True, on_delete=models.SET_NULL) # changeme
     higher_level_metering_points = models.ManyToManyField("MeteringPoint", blank=True)
 
     def __str__(self):

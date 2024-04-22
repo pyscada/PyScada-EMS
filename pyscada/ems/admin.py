@@ -140,7 +140,6 @@ class MeteringPointAdmin(admin.ModelAdmin):
     list_display_links = ("id",)
     list_editable = ("comment",)
     filter_horizontal = (
-        "location",
         "higher_level_metering_points",
     )
     list_filter = [
@@ -293,6 +292,7 @@ admin_site.register(Address, AddressAdmin)
 admin_site.register(BuildingInfo, BuildingInfoAdmin)
 admin_site.register(BuildingCategory, BuildingCategoryAdmin)
 admin_site.register(Building, BuildingAdmin)
+admin_site.register(Location)
 admin_site.register(Utility, UtilityAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
 admin_site.register(AttributeKey)
