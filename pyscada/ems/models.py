@@ -342,6 +342,12 @@ class MeteringPoint(MeteringPointProto):
         blank=True,
         null=True
     )
+    load_profile = models.ForeignKey(
+        "LoadProfile",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True
+    )
 
     def __str__(self):
         return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int',flat=True)))} ({self.utility.name if self.utility else '-'})"
@@ -746,3 +752,37 @@ class CalulatedMeteringPointEnergyDelta(models.Model):
 
     def energy_data(self, start_datetime, end_datetime, interval_length):
         return self.objects.filter(start_datetime_gte=start_datetime, end_datetime_lte=end_datetime, interval_length=interval_length)
+
+
+class LoadProfileProto(models.Model):
+    period_choices = (
+        ('year','Year'),
+        ('month','Month'),
+        ('week','Week'),
+        ('day','Day'),
+        ('hour','Hour'),
+        ('none','None'),
+    )
+    label = models.CharField(max_length=255)
+    period = models.CharField(max_length=10, choices=period_choices, default="week")
+    class Meta:
+        ordering = ["label"]
+        abstract = True
+
+
+class LoadProfile(LoadProfileProto):
+    pass
+
+
+class LoadProfileValueProto(models.Model):
+    date = models.DateTimeField(db_index=True) # timestamp of the value
+    value = models.FloatField()
+    class Meta:
+        ordering = ("date",)
+        abstract = True
+
+
+class LoadProfileValue(LoadProfileValueProto):
+    load_profile = models.ForeignKey(LoadProfile, on_delete=models.CASCADE)
+
+
