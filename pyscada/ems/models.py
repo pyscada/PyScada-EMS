@@ -328,7 +328,7 @@ class MeteringPointProto(models.Model):
     comment = models.CharField(max_length=255, default="", blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
-    unit = models.ForeignKey(Unit, on_delete=models.SET(1), blank=True, null=True)
+    unit = models.ForeignKey(Unit, on_delete=models.SET_NULL, blank=True, null=True)
     class Meta:
         abstract = True
         ordering = ("name",)
