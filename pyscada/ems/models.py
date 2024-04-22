@@ -294,6 +294,24 @@ class EnergyPricePeriod(models.Model):
     valid_to = models.DateField(null=True, blank=True)
     # fixme add validation, only one energy_price for all periodes
     # fixme add option to add documents
+
+
+class WeatherAdjustment(models.Model):
+    utility = models.ForeignKey(
+        Utility, on_delete=models.CASCADE, null=True, blank=True
+    )
+
+
+class WeatherAdjustmentPeriod(models.Model):
+    weather_adjustment = models.ForeignKey(
+        WeatherAdjustment,
+        on_delete=models.CASCADE
+    )
+    factor = models.FloatField(default=1.0)
+    valid_from = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(null=True, blank=True)
+
+
     building = models.ForeignKey(Building, on_delete=models.CASCADE, null=True)
     room = models.CharField(max_length=255)
     comment = models.TextField(blank=True, default="")
@@ -443,6 +461,9 @@ class VirtualMeteringPoint(MeteringPointProto):
         null=True,
         blank=True
     )
+
+    apply_weather_adjustment = models.BooleanField(default=False)
+
     def __str__(self):
         return f"{self.name} ({self.utility.name if self.utility else '-'})"
 

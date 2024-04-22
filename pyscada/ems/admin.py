@@ -130,6 +130,11 @@ class CalulationUnitAreaPartInline(admin.StackedInline):
     show_change_link=True
 
 
+class WeatherAdjustmentPeriodInline(admin.StackedInline):
+    model = WeatherAdjustmentPeriod
+    extra = 0
+    show_change_link=True
+
 class CalulationUnitAreaAttributeInline(admin.StackedInline):
     model = CalulationUnitAreaAttribute
     extra = 0
@@ -434,6 +439,8 @@ class CalulatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
     )
     list_filter = ['interval_length','metering_point']
 
+class WeatherAdjustmentAdmin(admin.ModelAdmin):
+    inlines = [WeatherAdjustmentPeriodInline]
 
 
 class EnergyPriceAdmin(admin.ModelAdmin):
@@ -472,6 +479,9 @@ admin_site.register(CalulationUnitArea, CalulationUnitAreaAdmin)
 admin_site.register(CalulationUnitAreaAttribute)
 admin_site.register(CalulationUnitAreaPeriod, CalulationUnitAreaPeriodAdmin)
 admin_site.register(CalulationUnitAreaPart)
+
+admin_site.register(WeatherAdjustment, WeatherAdjustmentAdmin)
+
 admin_site.register(MeteringPointAttachment)
 admin_site.register(VirtualMeteringPointAttachment)
 admin_site.register(EnergyMeterAttachment)
