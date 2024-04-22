@@ -253,7 +253,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
 
     @admin.display
     def energy_meters(self, instance):
-        return f"{', '.join(list(instance.energymeter_set.all().values_list('id_int',flat=True)))}, {', '.join(list(instance.energymeter_set.all().values_list('id_ext',flat=True)))}"
+        return f"{', '.join(list(instance.energymeter_set.all().values_list('id_ext',flat=True)))}"
 
     def dp_count(self, instance):
         return instance.dp_count()
