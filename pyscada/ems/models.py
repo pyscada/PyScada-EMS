@@ -12,6 +12,7 @@ from datetime import datetime
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 import pytz
+import re
 
 from pyscada.models import Unit, Variable
 
@@ -478,6 +479,22 @@ class VirtualMeteringPoint(MeteringPointProto):
 
     def eval(self, start_datetime, end_datetime, interval_length=60*60):
         return eval_calculation(calculation=self.calculation, start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length)
+
+    def regex_calulation(self, token):
+        """finds a regex tocken and add the resulting group matches to a list
+        """
+        matches = []
+        for matchNum, match in enumerate(re.finditer(token, self.calculation, re.MULTILINE), start=1):
+            for groupNum in range(0, len(match.groups())):
+                matches.append(match.group(groupNum + 1))
+        return matches
+
+    def get_mp_ids_from_calulation(self):
+        return self.regex_calulation(token="(?<!v)mp\((\d+)\)")
+
+    def get_vmp_ids_from_calulation(self):
+        return self.regex_calulation(token="vmp\((\d+)\)")
+
 
     def check_calculation(self):
         if self.calculation == "":
