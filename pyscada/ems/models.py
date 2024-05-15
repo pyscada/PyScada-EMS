@@ -497,6 +497,8 @@ class VirtualMeteringPoint(MeteringPointProto):
 
 
     def check_calculation(self):
+        #fixme add dependancy check for vmps
+
         if self.calculation == "":
             return None, "calculation is empty string"
 
@@ -520,6 +522,22 @@ class VirtualMeteringPoint(MeteringPointProto):
             return result, ""
         except:
             return None, traceback.format_exc()
+
+    def update_calculated_energy_deltas(self, start_datetime, end_datetime):
+
+        for interval_length in CalulatedMeteringPointEnergyDeltaInterval.objects.all():
+            timestamps, data = self.eval(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length.get_interval_length())
+
+            CalulatedVirtualMeteringPointEnergyDelta.objects.filter(metering_point=self, interval_length=interval_length).delete()
+            new_items = []
+            for i in range(len(data)):
+                new_items.append(CalulatedVirtualMeteringPointEnergyDelta(
+                        interval_length=interval_length,
+                        energy_delta=data[i],
+                        reading_date=datetime.fromtimestamp(timestamps[i]).replace(tzinfo=pytz.timezone("UTC")),
+                        virtual_metering_point=self
+                    ))
+            CalulatedVirtualMeteringPointEnergyDelta.objects.bulk_create(new_items)
 
     class Meta:
         ordering = ("name",)
@@ -769,16 +787,28 @@ class CalulatedMeteringPointEnergyDeltaInterval(models.Model):
     def __str__(self):
         return f"{self.interval_length}"
 
-class CalulatedMeteringPointEnergyDelta(models.Model):
+class CalulatedMeteringPointEnergyDeltaProto(models.Model):
     """
     """
     interval_length = models.ForeignKey(CalulatedMeteringPointEnergyDeltaInterval, on_delete=models.CASCADE)
     energy_delta = EnergyValue()
     reading_date = models.DateTimeField(db_index=True) # timestamp of the reading
-    metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
+
 
     def energy_data(self, start_datetime, end_datetime, interval_length):
         return self.objects.filter(start_datetime_gte=start_datetime, end_datetime_lte=end_datetime, interval_length=interval_length)
+
+    class Meta:
+        ordering = ["reading_date"]
+        abstract = True
+
+
+class CalulatedMeteringPointEnergyDelta(CalulatedMeteringPointEnergyDeltaProto):
+    metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
+
+
+class CalulatedVirtualMeteringPointEnergyDelta(CalulatedMeteringPointEnergyDeltaProto):
+    virtual_metering_point = models.ForeignKey(VirtualMeteringPoint, on_delete=models.CASCADE)
 
 
 class LoadProfileProto(models.Model):
