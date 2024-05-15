@@ -347,6 +347,9 @@ class AddressAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = True
 
+    def has_module_permission(self, request):
+        return False
+
 
 class BuildingInfoAdmin(admin.ModelAdmin):
     list_display = (
@@ -369,6 +372,9 @@ class BuildingInfoAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = True
 
+    def has_module_permission(self, request):
+        return False
+
 
 class BuildingCategoryAdmin(admin.ModelAdmin):
     list_display = (
@@ -380,6 +386,9 @@ class BuildingCategoryAdmin(admin.ModelAdmin):
     # filter_horizontal = ('name',)
     save_as = True
     save_as_continue = True
+
+    def has_module_permission(self, request):
+        return False
 
 
 class UtilityAdmin(admin.ModelAdmin):
@@ -393,6 +402,9 @@ class UtilityAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = True
 
+    def has_module_permission(self, request):
+        return False
+
 
 class VirtualMeteringPointCategoryAdmin(admin.ModelAdmin):
     list_display = (
@@ -405,6 +417,10 @@ class VirtualMeteringPointCategoryAdmin(admin.ModelAdmin):
     save_as = True
     save_as_continue = True
 
+    def has_module_permission(self, request):
+        return False
+
+
 
 class VirtualMeteringPointGroupAdmin(admin.ModelAdmin):
     list_display = (
@@ -416,6 +432,9 @@ class VirtualMeteringPointGroupAdmin(admin.ModelAdmin):
     # filter_horizontal = ('name',)
     save_as = True
     save_as_continue = True
+
+    def has_module_permission(self, request):
+        return False
 
 
 class DataEntryFormAdmin(admin.ModelAdmin):
@@ -439,6 +458,10 @@ class CalulationUnitAreaPeriodAdmin(admin.ModelAdmin):
     )
 
     inlines = []
+
+    def has_module_permission(self, request):
+        return False
+
 
 class CalulatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
     list_display = (
@@ -469,6 +492,67 @@ class AttachmentAdmin(admin.ModelAdmin):
     list_display_links = ["id", "label",]
     list_filter = ['category']
 
+class EnergyPricePeriodAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class MeteringPointLocationAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class CalulationUnitAreaAttributeAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class AttachmentCategoryAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class CalulationUnitAreaPartAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class AttributeKeyAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class FloatAttributeKeyAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class MeteringPointAttachmentAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class VirtualMeteringPointAttachmentAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class EnergyMeterAttachmentAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+
 
 admin_site.register(EnergyMeter, EnergyMeterAdmin)
 admin_site.register(MeteringPoint, MeteringPointAdmin)
@@ -476,29 +560,29 @@ admin_site.register(Address, AddressAdmin)
 admin_site.register(BuildingInfo, BuildingInfoAdmin)
 admin_site.register(BuildingCategory, BuildingCategoryAdmin)
 admin_site.register(Building, BuildingAdmin)
-admin_site.register(MeteringPointLocation)
+admin_site.register(MeteringPointLocation, MeteringPointLocationAdmin)
 admin_site.register(EnergyReading, EnergyReadingAdmin)
 admin_site.register(Utility, UtilityAdmin)
 
 admin_site.register(EnergyPrice, EnergyPriceAdmin)
-admin_site.register(EnergyPricePeriod)
+admin_site.register(EnergyPricePeriod, EnergyPricePeriodAdmin)
 
 admin_site.register(Attachment, AttachmentAdmin)
-admin_site.register(AttachmentCategory)
+admin_site.register(AttachmentCategory, AttachmentCategoryAdmin)
 
 admin_site.register(CalulationUnitArea, CalulationUnitAreaAdmin)
-admin_site.register(CalulationUnitAreaAttribute)
+admin_site.register(CalulationUnitAreaAttribute, CalulationUnitAreaAttributeAdmin)
 admin_site.register(CalulationUnitAreaPeriod, CalulationUnitAreaPeriodAdmin)
-admin_site.register(CalulationUnitAreaPart)
+admin_site.register(CalulationUnitAreaPart, CalulationUnitAreaPartAdmin)
 
 admin_site.register(WeatherAdjustment, WeatherAdjustmentAdmin)
 
-admin_site.register(MeteringPointAttachment)
-admin_site.register(VirtualMeteringPointAttachment)
-admin_site.register(EnergyMeterAttachment)
+admin_site.register(MeteringPointAttachment, MeteringPointAttachmentAdmin)
+admin_site.register(VirtualMeteringPointAttachment, VirtualMeteringPointAttachmentAdmin)
+admin_site.register(EnergyMeterAttachment, EnergyMeterAttachmentAdmin)
 
-admin_site.register(AttributeKey)
-admin_site.register(FloatAttributeKey)
+admin_site.register(AttributeKey, AttributeKeyAdmin)
+admin_site.register(FloatAttributeKey, FloatAttributeKeyAdmin)
 
 admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
