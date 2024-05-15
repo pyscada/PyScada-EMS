@@ -550,31 +550,36 @@ class EnergyMeter(models.Model):
     def __str__(self):
         return f"{self.metering_point.name if self.metering_point else '-'}({self.pk}) ({self.id_ext}, {self.id_int})"
 
-    def get_readings(self, start_datetime=None, end_datetime=None, dtype=float, apply_factor=True, convert_to_upcounting=True, datetime_boundary="outside"):
+    def get_raw_readings(self, start_datetime=None, end_datetime=None, datetime_boundary="outside"):
 
         if start_datetime is None and end_datetime is None:
-            energy_readings = self.energyreading_set.all()
+            return self.energyreading_set.all()
 
-        else:
-            if start_datetime is None:
-                start_datetime = self.energyreading_set.first().reading_date
 
-            if end_datetime is None:
-                end_datetime = self.energyreading_set.last().reading_date
+        if start_datetime is None:
+            start_datetime = self.energyreading_set.first().reading_date
 
-            if datetime_boundary == "outside":
+        if end_datetime is None:
+            end_datetime = self.energyreading_set.last().reading_date
 
-                start_datetime_tmp = self.energyreading_set.filter(reading_date__lte=start_datetime).last() # get the datetime that is right outside the window
+        if datetime_boundary == "outside":
 
-                if start_datetime_tmp:
-                    start_datetime = start_datetime_tmp.reading_date
+            start_datetime_tmp = self.energyreading_set.filter(reading_date__lte=start_datetime).last() # get the datetime that is right outside the window
 
-                end_datetime_tmp = self.energyreading_set.filter(reading_date__gte=end_datetime).first() # get the datetime that is right outside the window
+            if start_datetime_tmp:
+                start_datetime = start_datetime_tmp.reading_date
 
-                if end_datetime_tmp:
-                    end_datetime = end_datetime_tmp.reading_date
+            end_datetime_tmp = self.energyreading_set.filter(reading_date__gte=end_datetime).first() # get the datetime that is right outside the window
 
-            energy_readings = self.energyreading_set.filter(reading_date__gte=start_datetime, reading_date__lte=end_datetime)
+            if end_datetime_tmp:
+                end_datetime = end_datetime_tmp.reading_date
+
+        return self.energyreading_set.filter(reading_date__gte=start_datetime, reading_date__lte=end_datetime)
+
+
+    def get_readings(self, start_datetime=None, end_datetime=None, dtype=float, apply_factor=True, convert_to_upcounting=True, datetime_boundary="outside"):
+
+        energy_readings = self.get_raw_readings(start_datetime=start_datetime, end_datetime=end_datetime, datetime_boundary=datetime_boundary)
 
         meter_readings = [dtype(item) for item in energy_readings.values_list('reading',flat=True)]
         meter_timestamps = [item.timestamp() for item in energy_readings.values_list('reading_date',flat=True)]
