@@ -311,6 +311,24 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
     save_as_continue = True
     inlines = [VirtualMeteringPointAttributeInline, VirtualMeteringPointAttachmentInline]
 
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        form = super().get_form(request, obj=obj, change=change, **kwargs)
+        if obj is None:
+            return form
+        variable_list = "MeteringPoints:</br>"
+        for id in obj.get_mp_ids_from_calulation():
+            mp = MeteringPoint.objects.filter(pk=int(id)).first()
+            if mp:
+                variable_list += f"{id}: {str(mp)}</br>"
+        variable_list += "VirtualMeteringPoints:</br>"
+        for id in obj.get_vmp_ids_from_calulation():
+            vmp = VirtualMeteringPoint.objects.filter(pk=int(id)).first()
+            if vmp:
+                variable_list += f"{id}: {str(vmp)}</br>"
+
+        form.base_fields["calculation"].help_text = f"Used Variables:</br>{variable_list}</br>{form.base_fields['calculation'].help_text}"
+        return form
+
 
 class BuildingAdmin(admin.ModelAdmin):
     list_display = (
