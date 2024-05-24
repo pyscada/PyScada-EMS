@@ -106,7 +106,7 @@ def eval_calculation(calculation, start_datetime, end_datetime, interval_length=
         return virtual_metering_point_data(vmp_id, start_datetime, end_datetime, interval_length)[1]
 
     try:
-        result = simple_eval(calculation, functions={"mp": mp_data, "vmp":vmp_data})
+        result = simple_eval(calculation, functions={"mp": mp_data, "vmp":vmp_data}) * np.ones(timestamps.shape)
     except:
         return timestamps, np.zeros(timestamps.shape)
 
