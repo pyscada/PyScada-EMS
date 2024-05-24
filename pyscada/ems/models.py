@@ -733,6 +733,8 @@ class DataEntryFormElement(models.Model):
 class AttachmentCategory(ListElement):
     pass
 
+class AttachmentGroup(ListElement):
+    pass
 
 class Attachment(models.Model):
     label = models.CharField(max_length=255)
@@ -740,9 +742,17 @@ class Attachment(models.Model):
     datetime_changed = models.DateTimeField(auto_now=True, auto_now_add=False)
     datetime_added = models.DateTimeField(auto_now=False, auto_now_add=True)
     category = models.ForeignKey(
-            AttachmentCategory, on_delete=models.SET_NULL,
+            AttachmentCategory,
+            on_delete=models.SET_NULL,
             blank=True,
-            null=True
+            null=True,
+            help_text=""
+        )
+
+    groups = models.ManyToManyField(
+            AttachmentGroup,
+            blank=True,
+            help_text=""
         )
 
     def __str__(self):

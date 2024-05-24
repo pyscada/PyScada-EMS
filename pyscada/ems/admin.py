@@ -520,7 +520,21 @@ class AttachmentAdmin(admin.ModelAdmin):
         "attached_file",
     )
     list_display_links = ["id", "label",]
-    list_filter = ['category']
+    list_filter = ["category", "groups"]
+
+
+class AttachmentCategoryAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class AttachmentGroupAdmin(admin.ModelAdmin):
+    filter_horizontal = ("groups",)
+
+    def has_module_permission(self, request):
+        return False
+
 
 class EnergyPricePeriodAdmin(admin.ModelAdmin):
 
@@ -535,12 +549,6 @@ class MeteringPointLocationAdmin(admin.ModelAdmin):
 
 
 class CalculationUnitAreaAttributeAdmin(admin.ModelAdmin):
-
-    def has_module_permission(self, request):
-        return False
-
-
-class AttachmentCategoryAdmin(admin.ModelAdmin):
 
     def has_module_permission(self, request):
         return False
@@ -598,6 +606,7 @@ admin_site.register(EnergyPricePeriod, EnergyPricePeriodAdmin)
 
 admin_site.register(Attachment, AttachmentAdmin)
 admin_site.register(AttachmentCategory, AttachmentCategoryAdmin)
+admin_site.register(AttachmentGroup, AttachmentGroupAdmin)
 
 admin_site.register(CalculationUnitArea, CalculationUnitAreaAdmin)
 admin_site.register(CalculationUnitAreaAttribute, CalculationUnitAreaAttributeAdmin)
