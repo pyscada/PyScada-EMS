@@ -121,14 +121,14 @@ class BuildingInfoInline(admin.StackedInline):
     show_change_link=True
 
 
-class CalulationUnitAreaPeriodInline(admin.StackedInline):
-    model = CalulationUnitAreaPeriod
+class CalculationUnitAreaPeriodInline(admin.StackedInline):
+    model = CalculationUnitAreaPeriod
     extra = 0
     show_change_link=True
 
 
-class CalulationUnitAreaPartInline(admin.StackedInline):
-    model = CalulationUnitAreaPart
+class CalculationUnitAreaPartInline(admin.StackedInline):
+    model = CalculationUnitAreaPart
     extra = 0
     show_change_link=True
 
@@ -138,8 +138,8 @@ class WeatherAdjustmentPeriodInline(admin.StackedInline):
     extra = 0
     show_change_link=True
 
-class CalulationUnitAreaAttributeInline(admin.StackedInline):
-    model = CalulationUnitAreaAttribute
+class CalculationUnitAreaAttributeInline(admin.StackedInline):
+    model = CalculationUnitAreaAttribute
     extra = 0
     show_change_link=True
 
@@ -316,12 +316,12 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
         if obj is None:
             return form
         variable_list = "MeteringPoints:</br>"
-        for id in obj.get_mp_ids_from_calulation():
+        for id in obj.get_mp_ids_from_calculation():
             mp = MeteringPoint.objects.filter(pk=int(id)).first()
             if mp:
                 variable_list += f"{id}: {str(mp)}</br>"
         variable_list += "VirtualMeteringPoints:</br>"
-        for id in obj.get_vmp_ids_from_calulation():
+        for id in obj.get_vmp_ids_from_calculation():
             vmp = VirtualMeteringPoint.objects.filter(pk=int(id)).first()
             if vmp:
                 variable_list += f"{id}: {str(vmp)}</br>"
@@ -459,15 +459,15 @@ class DataEntryFormAdmin(admin.ModelAdmin):
     inlines = [DataEntryFormElementInline]
 
 
-class CalulationUnitAreaAdmin(admin.ModelAdmin):
+class CalculationUnitAreaAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "name",
     )
-    inlines = [CalulationUnitAreaPartInline, CalulationUnitAreaAttributeInline]
+    inlines = [CalculationUnitAreaPartInline, CalculationUnitAreaAttributeInline]
 
 
-class CalulationUnitAreaPeriodAdmin(admin.ModelAdmin):
+class CalculationUnitAreaPeriodAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "label",
@@ -481,7 +481,7 @@ class CalulationUnitAreaPeriodAdmin(admin.ModelAdmin):
         return False
 
 
-class CalulatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
+class CalculatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "interval_length",
@@ -490,6 +490,18 @@ class CalulatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
         "metering_point",
     )
     list_filter = ['interval_length','metering_point']
+
+
+class CalculatedVirtualMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "interval_length",
+        "reading_date",
+        "energy_delta",
+        "virtual_metering_point",
+    )
+    list_filter = ['interval_length','virtual_metering_point']
+
 
 class WeatherAdjustmentAdmin(admin.ModelAdmin):
     inlines = [WeatherAdjustmentPeriodInline]
@@ -522,7 +534,7 @@ class MeteringPointLocationAdmin(admin.ModelAdmin):
         return False
 
 
-class CalulationUnitAreaAttributeAdmin(admin.ModelAdmin):
+class CalculationUnitAreaAttributeAdmin(admin.ModelAdmin):
 
     def has_module_permission(self, request):
         return False
@@ -534,7 +546,7 @@ class AttachmentCategoryAdmin(admin.ModelAdmin):
         return False
 
 
-class CalulationUnitAreaPartAdmin(admin.ModelAdmin):
+class CalculationUnitAreaPartAdmin(admin.ModelAdmin):
 
     def has_module_permission(self, request):
         return False
@@ -571,7 +583,6 @@ class EnergyMeterAttachmentAdmin(admin.ModelAdmin):
 
 
 
-
 admin_site.register(EnergyMeter, EnergyMeterAdmin)
 admin_site.register(MeteringPoint, MeteringPointAdmin)
 admin_site.register(Address, AddressAdmin)
@@ -588,10 +599,10 @@ admin_site.register(EnergyPricePeriod, EnergyPricePeriodAdmin)
 admin_site.register(Attachment, AttachmentAdmin)
 admin_site.register(AttachmentCategory, AttachmentCategoryAdmin)
 
-admin_site.register(CalulationUnitArea, CalulationUnitAreaAdmin)
-admin_site.register(CalulationUnitAreaAttribute, CalulationUnitAreaAttributeAdmin)
-admin_site.register(CalulationUnitAreaPeriod, CalulationUnitAreaPeriodAdmin)
-admin_site.register(CalulationUnitAreaPart, CalulationUnitAreaPartAdmin)
+admin_site.register(CalculationUnitArea, CalculationUnitAreaAdmin)
+admin_site.register(CalculationUnitAreaAttribute, CalculationUnitAreaAttributeAdmin)
+admin_site.register(CalculationUnitAreaPeriod, CalculationUnitAreaPeriodAdmin)
+admin_site.register(CalculationUnitAreaPart, CalculationUnitAreaPartAdmin)
 
 admin_site.register(WeatherAdjustment, WeatherAdjustmentAdmin)
 
@@ -606,7 +617,8 @@ admin_site.register(VirtualMeteringPoint, VirtualMeteringPointAdmin)
 admin_site.register(VirtualMeteringPointCategory, VirtualMeteringPointCategoryAdmin)
 admin_site.register(VirtualMeteringPointGroup, VirtualMeteringPointGroupAdmin)
 
-admin_site.register(CalulatedMeteringPointEnergyDelta, CalulatedMeteringPointEnergyDeltaAdmin)
-admin_site.register(CalulatedMeteringPointEnergyDeltaInterval)
+admin_site.register(CalculatedMeteringPointEnergyDelta, CalculatedMeteringPointEnergyDeltaAdmin)
+admin_site.register(CalculatedVirtualMeteringPointEnergyDelta, CalculatedVirtualMeteringPointEnergyDeltaAdmin)
+admin_site.register(CalculatedMeteringPointEnergyDeltaInterval)
 
 admin_site.register(DataEntryForm, DataEntryFormAdmin)

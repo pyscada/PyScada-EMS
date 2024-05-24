@@ -16,7 +16,7 @@ import re
 
 from pyscada.models import Unit, Variable
 
-def caluculate_timestamps(start_datetime, end_datetime, interval_length=60*60, include_start=True, include_end=True):
+def calculate_timestamps(start_datetime, end_datetime, interval_length=60*60, include_start=True, include_end=True):
     if type(interval_length) is int or type(interval_length) is float:
         return np.arange(
                 start_datetime.timestamp() + (interval_length if not include_start else 0),
@@ -29,7 +29,7 @@ def caluculate_timestamps(start_datetime, end_datetime, interval_length=60*60, i
             return []
 
         if interval_length.lower() == "day":
-            return caluculate_timestamps(
+            return calculate_timestamps(
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
                     interval_length=60*60*24,
@@ -38,7 +38,7 @@ def caluculate_timestamps(start_datetime, end_datetime, interval_length=60*60, i
                 )
 
         if interval_length.lower() == "hour":
-            return caluculate_timestamps(
+            return calculate_timestamps(
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
                     interval_length=60*60,
@@ -72,7 +72,7 @@ def caluculate_timestamps(start_datetime, end_datetime, interval_length=60*60, i
 def metering_point_data(meterin_point_id, start_datetime, end_datetime, interval_length):
     mp = MeteringPoint.objects.filter(pk=meterin_point_id).first()
     if mp is None:
-        timestamps = caluculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
+        timestamps = calculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
         return timestamps, np.zeros(timestamps.shape)
 
     timestamps, energy = mp.energy_data(start_datetime, end_datetime, interval_length)
@@ -82,7 +82,7 @@ def metering_point_data(meterin_point_id, start_datetime, end_datetime, interval
 def virtual_metering_point_data(virtual_metering_point_id, start_datetime, end_datetime, interval_length):
     vmp = VirtualMeteringPoint.objects.filter(pk=virtual_metering_point_id).first()
     if vmp is None:
-        timestamps = caluculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
+        timestamps = calculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
         return timestamps, np.zeros(timestamps.shape)
 
     return vmp.eval(start_datetime, end_datetime, interval_length)
@@ -93,7 +93,7 @@ class CalculationSyntaxError(Exception):
 
 
 def eval_calculation(calculation, start_datetime, end_datetime, interval_length=60*60):
-    timestamps = caluculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
+    timestamps = calculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
 
     if calculation=="":
         return timestamps, np.zeros(timestamps.shape)
@@ -225,7 +225,7 @@ class BuildingInfo(models.Model):
     nb_rooms = models.FloatField()
 
 
-class CalulationUnitArea(models.Model):
+class CalculationUnitArea(models.Model):
     name = models.CharField(max_length=255, default="", blank=True)
     def __str__(self):
         return f"{self.name}"
@@ -234,11 +234,11 @@ class CalulationUnitArea(models.Model):
         ordering = ["name"]
 
 
-class CalulationUnitAreaAttribute(Attribute):
-    calculation_unit_area = models.ForeignKey(CalulationUnitArea, on_delete=models.CASCADE)
+class CalculationUnitAreaAttribute(Attribute):
+    calculation_unit_area = models.ForeignKey(CalculationUnitArea, on_delete=models.CASCADE)
 
 
-class CalulationUnitAreaPeriod(models.Model):
+class CalculationUnitAreaPeriod(models.Model):
     label = models.CharField(max_length=255, blank=True, null=True)
     valid_from = models.DateField(null=True, blank=True)
     valid_to = models.DateField(null=True, blank=True)
@@ -246,13 +246,13 @@ class CalulationUnitAreaPeriod(models.Model):
         return f"{self.label} {self.valid_from} - {self.valid_to}"
 
 
-class CalulationUnitAreaPart(FloatAttribute):
+class CalculationUnitAreaPart(FloatAttribute):
     calculation_unit_area_period = models.ForeignKey(
-        CalulationUnitAreaPeriod,
+        CalculationUnitAreaPeriod,
         on_delete=models.CASCADE
     )
     calculation_unit_area = models.ForeignKey(
-        CalulationUnitArea,
+        CalculationUnitArea,
         on_delete=models.CASCADE
     )
     unit = models.ForeignKey(
@@ -360,7 +360,7 @@ class MeteringPoint(MeteringPointProto):
             return [], []
 
         if timestamps is None:
-            timestamps = caluculate_timestamps(
+            timestamps = calculate_timestamps(
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
                     interval_length=interval_length,
@@ -389,19 +389,19 @@ class MeteringPoint(MeteringPointProto):
 
     def update_calculated_energy_deltas(self, start_datetime, end_datetime):
 
-        for interval_length in CalulatedMeteringPointEnergyDeltaInterval.objects.all():
+        for interval_length in CalculatedMeteringPointEnergyDeltaInterval.objects.all():
             timestamps, data = self.energy_data(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length.get_interval_length())
 
-            CalulatedMeteringPointEnergyDelta.objects.filter(metering_point=self, interval_length=interval_length).delete()
+            CalculatedMeteringPointEnergyDelta.objects.filter(metering_point=self, interval_length=interval_length).delete()
             new_items = []
             for i in range(len(data)):
-                new_items.append(CalulatedMeteringPointEnergyDelta(
+                new_items.append(CalculatedMeteringPointEnergyDelta(
                         interval_length=interval_length,
                         energy_delta=data[i],
                         reading_date=datetime.fromtimestamp(timestamps[i]).replace(tzinfo=pytz.timezone("UTC")),
                         metering_point=self
                     ))
-            CalulatedMeteringPointEnergyDelta.objects.bulk_create(new_items)
+            CalculatedMeteringPointEnergyDelta.objects.bulk_create(new_items)
 
 
     def get_first_datetime(self, default=None):
@@ -465,7 +465,7 @@ class VirtualMeteringPoint(MeteringPointProto):
     )
 
     unit_area = models.ForeignKey(
-        CalulationUnitArea,
+        CalculationUnitArea,
         on_delete=models.CASCADE,
         null=True,
         blank=True
@@ -480,7 +480,7 @@ class VirtualMeteringPoint(MeteringPointProto):
     def eval(self, start_datetime, end_datetime, interval_length=60*60):
         return eval_calculation(calculation=self.calculation, start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length)
 
-    def regex_calulation(self, token):
+    def regex_calculation(self, token):
         """finds a regex tocken and add the resulting group matches to a list
         """
         matches = []
@@ -489,11 +489,11 @@ class VirtualMeteringPoint(MeteringPointProto):
                 matches.append(match.group(groupNum + 1))
         return matches
 
-    def get_mp_ids_from_calulation(self):
-        return self.regex_calulation(token="(?<!v)mp\((\d+)\)")
+    def get_mp_ids_from_calculation(self):
+        return self.regex_calculation(token="(?<!v)mp\((\d+)\)")
 
-    def get_vmp_ids_from_calulation(self):
-        return self.regex_calulation(token="vmp\((\d+)\)")
+    def get_vmp_ids_from_calculation(self):
+        return self.regex_calculation(token="vmp\((\d+)\)")
 
 
     def check_calculation(self):
@@ -525,19 +525,19 @@ class VirtualMeteringPoint(MeteringPointProto):
 
     def update_calculated_energy_deltas(self, start_datetime, end_datetime):
 
-        for interval_length in CalulatedMeteringPointEnergyDeltaInterval.objects.all():
+        for interval_length in CalculatedMeteringPointEnergyDeltaInterval.objects.all():
             timestamps, data = self.eval(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length.get_interval_length())
 
-            CalulatedVirtualMeteringPointEnergyDelta.objects.filter(metering_point=self, interval_length=interval_length).delete()
+            CalculatedVirtualMeteringPointEnergyDelta.objects.filter(virtual_metering_point=self, interval_length=interval_length).delete()
             new_items = []
             for i in range(len(data)):
-                new_items.append(CalulatedVirtualMeteringPointEnergyDelta(
+                new_items.append(CalculatedVirtualMeteringPointEnergyDelta(
                         interval_length=interval_length,
                         energy_delta=data[i],
                         reading_date=datetime.fromtimestamp(timestamps[i]).replace(tzinfo=pytz.timezone("UTC")),
                         virtual_metering_point=self
                     ))
-            CalulatedVirtualMeteringPointEnergyDelta.objects.bulk_create(new_items)
+            CalculatedVirtualMeteringPointEnergyDelta.objects.bulk_create(new_items)
 
     class Meta:
         ordering = ("name",)
@@ -629,7 +629,7 @@ class EnergyMeter(models.Model):
         if timestamps is None:
             if start_datetime >= end_datetime:
                 return [], []
-            timestamps = caluculate_timestamps(
+            timestamps = calculate_timestamps(
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
                     interval_length=interval_length,
@@ -775,7 +775,7 @@ class EnergyMeterAttachment(models.Model):
     )
 
 
-class CalulatedMeteringPointEnergyDeltaInterval(models.Model):
+class CalculatedMeteringPointEnergyDeltaInterval(models.Model):
     interval_length = models.CharField(max_length=20, default="day", help_text="can be hour, day, month, quater, year or number in seconds")
 
     def get_interval_length(self):
@@ -787,10 +787,10 @@ class CalulatedMeteringPointEnergyDeltaInterval(models.Model):
     def __str__(self):
         return f"{self.interval_length}"
 
-class CalulatedMeteringPointEnergyDeltaProto(models.Model):
+class CalculatedMeteringPointEnergyDeltaProto(models.Model):
     """
     """
-    interval_length = models.ForeignKey(CalulatedMeteringPointEnergyDeltaInterval, on_delete=models.CASCADE)
+    interval_length = models.ForeignKey(CalculatedMeteringPointEnergyDeltaInterval, on_delete=models.CASCADE)
     energy_delta = EnergyValue()
     reading_date = models.DateTimeField(db_index=True) # timestamp of the reading
 
@@ -803,11 +803,11 @@ class CalulatedMeteringPointEnergyDeltaProto(models.Model):
         abstract = True
 
 
-class CalulatedMeteringPointEnergyDelta(CalulatedMeteringPointEnergyDeltaProto):
+class CalculatedMeteringPointEnergyDelta(CalculatedMeteringPointEnergyDeltaProto):
     metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
 
 
-class CalulatedVirtualMeteringPointEnergyDelta(CalulatedMeteringPointEnergyDeltaProto):
+class CalculatedVirtualMeteringPointEnergyDelta(CalculatedMeteringPointEnergyDeltaProto):
     virtual_metering_point = models.ForeignKey(VirtualMeteringPoint, on_delete=models.CASCADE)
 
 
