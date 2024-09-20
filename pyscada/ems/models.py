@@ -2,27 +2,33 @@
 from __future__ import unicode_literals
 
 import os
-
-from django.db import models
-import numpy as np
-from simpleeval import simple_eval
-import traceback
-
-from datetime import datetime
-from datetime import timedelta
-from dateutil.relativedelta import relativedelta
-import pytz
 import re
+import traceback
+from datetime import datetime
 
-from pyscada.models import Unit, Variable
+import numpy as np
+import pytz
+from dateutil.relativedelta import relativedelta
+from django.db import models
+from django.utils import timezone
+from simpleeval import simple_eval
 
-def calculate_timestamps(start_datetime, end_datetime, interval_length=60*60, include_start=True, include_end=True):
+from pyscada.models import Unit
+
+
+def calculate_timestamps(
+    start_datetime,
+    end_datetime,
+    interval_length=60 * 60,
+    include_start=True,
+    include_end=True,
+):
     if type(interval_length) is int or type(interval_length) is float:
         return np.arange(
-                start_datetime.timestamp() + (interval_length if not include_start else 0),
-                end_datetime.timestamp() + (interval_length if include_end else 0),
-                interval_length
-            )
+            start_datetime.timestamp() + (interval_length if not include_start else 0),
+            end_datetime.timestamp() + (interval_length if include_end else 0),
+            interval_length,
+        )
 
     if type(interval_length) is str:
         if interval_length not in ["day", "hour", "month", "quarter", "year"]:
@@ -30,21 +36,21 @@ def calculate_timestamps(start_datetime, end_datetime, interval_length=60*60, in
 
         if interval_length.lower() == "day":
             return calculate_timestamps(
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval_length=60*60*24,
-                    include_start=include_start,
-                    include_end=include_end
-                )
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval_length=60 * 60 * 24,
+                include_start=include_start,
+                include_end=include_end,
+            )
 
         if interval_length.lower() == "hour":
             return calculate_timestamps(
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval_length=60*60,
-                    include_start=include_start,
-                    include_end=include_end
-                )
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval_length=60 * 60,
+                include_start=include_start,
+                include_end=include_end,
+            )
 
         result = []
         result.append(start_datetime)
@@ -69,20 +75,35 @@ def calculate_timestamps(start_datetime, end_datetime, interval_length=60*60, in
 
         return np.asarray([item.timestamp() for item in result])
 
-def metering_point_data(meterin_point_id, start_datetime, end_datetime, interval_length):
+
+def metering_point_data(
+    meterin_point_id, start_datetime, end_datetime, interval_length
+):
     mp = MeteringPoint.objects.filter(pk=meterin_point_id).first()
     if mp is None:
-        timestamps = calculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
+        timestamps = calculate_timestamps(
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval_length=interval_length,
+            include_start=False,
+        )
         return timestamps, np.zeros(timestamps.shape)
 
     timestamps, energy = mp.energy_data(start_datetime, end_datetime, interval_length)
     return timestamps, energy
 
 
-def virtual_metering_point_data(virtual_metering_point_id, start_datetime, end_datetime, interval_length):
+def virtual_metering_point_data(
+    virtual_metering_point_id, start_datetime, end_datetime, interval_length
+):
     vmp = VirtualMeteringPoint.objects.filter(pk=virtual_metering_point_id).first()
     if vmp is None:
-        timestamps = calculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
+        timestamps = calculate_timestamps(
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval_length=interval_length,
+            include_start=False,
+        )
         return timestamps, np.zeros(timestamps.shape)
 
     return vmp.eval(start_datetime, end_datetime, interval_length)
@@ -92,22 +113,28 @@ class CalculationSyntaxError(Exception):
     pass
 
 
-def eval_calculation(calculation, start_datetime, end_datetime, interval_length=60*60):
-    timestamps = calculate_timestamps(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length, include_start=False)
+def eval_calculation(
+    calculation, start_datetime, end_datetime, interval_length=60 * 60, timestamps=None
+):
 
-    if calculation=="":
+    if calculation == "":
         return timestamps, np.zeros(timestamps.shape)
 
     def mp_data(mp_id):
-        return metering_point_data(mp_id, start_datetime, end_datetime, interval_length)[1]
-
+        return metering_point_data(
+            mp_id, start_datetime, end_datetime, interval_length
+        )[1]
 
     def vmp_data(vmp_id):
-        return virtual_metering_point_data(vmp_id, start_datetime, end_datetime, interval_length)[1]
+        return virtual_metering_point_data(
+            vmp_id, start_datetime, end_datetime, interval_length
+        )[1]
 
     try:
-        result = simple_eval(calculation, functions={"mp": mp_data, "vmp":vmp_data}) * np.ones(timestamps.shape)
-    except:
+        result = simple_eval(
+            calculation, functions={"mp": mp_data, "vmp": vmp_data}
+        ) * np.ones(timestamps.shape)
+    except Exception:
         return timestamps, np.zeros(timestamps.shape)
 
     return timestamps, result
@@ -123,6 +150,7 @@ class ListElement(models.Model):
         ordering = ["name"]
         abstract = True
 
+
 class EnergyValue(models.DecimalField):
     description = "DecimalField (up to 6 decimal places and 24 digits)"
 
@@ -130,6 +158,7 @@ class EnergyValue(models.DecimalField):
         kwargs["decimal_places"] = 6
         kwargs["max_digits"] = 18 + kwargs["decimal_places"]
         super().__init__(*args, **kwargs)
+
 
 class Utility(ListElement):
     pass
@@ -142,8 +171,10 @@ class BuildingCategory(ListElement):
 class VirtualMeteringPointCategory(ListElement):
     pass
 
+
 class VirtualMeteringPointGroup(ListElement):
     pass
+
 
 class AttributeKey(ListElement):
     show_in_meteringpoint_admin = models.BooleanField(default=False)
@@ -227,6 +258,7 @@ class BuildingInfo(models.Model):
 
 class CalculationUnitArea(models.Model):
     name = models.CharField(max_length=255, default="", blank=True)
+
     def __str__(self):
         return f"{self.name}"
 
@@ -235,63 +267,59 @@ class CalculationUnitArea(models.Model):
 
 
 class CalculationUnitAreaAttribute(Attribute):
-    calculation_unit_area = models.ForeignKey(CalculationUnitArea, on_delete=models.CASCADE)
+    calculation_unit_area = models.ForeignKey(
+        CalculationUnitArea, on_delete=models.CASCADE
+    )
 
 
 class CalculationUnitAreaPeriod(models.Model):
     label = models.CharField(max_length=255, blank=True, null=True)
     valid_from = models.DateField(null=True, blank=True)
-    valid_to = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(
+        null=True, blank=True
+    )  # will be ignored for now and deleted in the future
+
     def __str__(self):
         return f"{self.label} {self.valid_from} - {self.valid_to}"
 
 
 class CalculationUnitAreaPart(FloatAttribute):
     calculation_unit_area_period = models.ForeignKey(
-        CalculationUnitAreaPeriod,
-        on_delete=models.CASCADE
+        CalculationUnitAreaPeriod, on_delete=models.CASCADE
     )
     calculation_unit_area = models.ForeignKey(
-        CalculationUnitArea,
-        on_delete=models.CASCADE
+        CalculationUnitArea, on_delete=models.CASCADE
     )
-    unit = models.ForeignKey(
-        Unit, on_delete=models.CASCADE,
-        blank=True,
-        null=True
-    )
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, blank=True, null=True)
+
     def __str__(self):
-        return f"{self.key}: {self.value} {self.unit.unit if self.unit is not None else '-'}"
+        unit = self.unit.unit if self.unit is not None else "-"
+        return f"{self.key}: {self.value} {unit}"
 
 
 class EnergyPrice(models.Model):
     name = models.CharField(max_length=255, default="", blank=True)
-    unit = models.ForeignKey(
-        Unit,
-        on_delete=models.CASCADE
-    )
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
     per_unit = models.ForeignKey(
-        Unit,
-        on_delete=models.CASCADE,
-        related_name="per_unit"
+        Unit, on_delete=models.CASCADE, related_name="per_unit"
     )
-    utility = models.ForeignKey(
-        Utility,
-        on_delete=models.CASCADE
-    )
-    # fixme add validation, energy price utility and metering point utility must be equal
+    utility = models.ForeignKey(Utility, on_delete=models.CASCADE)
+
+    # fixme add validation, energy price utility and metering point
+    # utility must be equal
     def __str__(self):
-        return f"{self.name}: {self.utility.name} in {self.unit.unit}/{self.per_unit.unit}"
+        return (
+            f"{self.name}: {self.utility.name} in {self.unit.unit}/{self.per_unit.unit}"
+        )
 
 
 class EnergyPricePeriod(models.Model):
-    energy_price = models.ForeignKey(
-        EnergyPrice,
-        on_delete=models.CASCADE
-    )
+    energy_price = models.ForeignKey(EnergyPrice, on_delete=models.CASCADE)
     price = models.DecimalField(max_digits=12, decimal_places=6)
     valid_from = models.DateField(null=True, blank=True)
-    valid_to = models.DateField(null=True, blank=True)
+    valid_to = models.DateField(
+        null=True, blank=True
+    )  # will be ignored for now and deleted in the future
     # fixme add validation, only one energy_price for all periodes
     # fixme add option to add documents
 
@@ -303,10 +331,7 @@ class WeatherAdjustment(models.Model):
 
 
 class WeatherAdjustmentPeriod(models.Model):
-    weather_adjustment = models.ForeignKey(
-        WeatherAdjustment,
-        on_delete=models.CASCADE
-    )
+    weather_adjustment = models.ForeignKey(WeatherAdjustment, on_delete=models.CASCADE)
     factor = models.FloatField(default=1.0)
     valid_from = models.DateField(null=True, blank=True)
     valid_to = models.DateField(null=True, blank=True)
@@ -323,50 +348,56 @@ class MeteringPointLocation(models.Model):
 
 class MeteringPointProto(models.Model):
     name = models.CharField(max_length=255, blank=True, default="")
-    utility = models.ForeignKey(
-        Utility, on_delete=models.CASCADE
-    )
+    utility = models.ForeignKey(Utility, on_delete=models.CASCADE)
     comment = models.CharField(max_length=255, default="", blank=True)
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
     unit = models.ForeignKey(Unit, on_delete=models.SET_NULL, blank=True, null=True)
+
     class Meta:
         abstract = True
         ordering = ("name",)
 
 
 class MeteringPoint(MeteringPointProto):
-    location = models.ForeignKey(MeteringPointLocation, blank=True, null=True, on_delete=models.SET_NULL) # changeme
+    location = models.ForeignKey(
+        MeteringPointLocation, blank=True, null=True, on_delete=models.SET_NULL
+    )  # changeme
     higher_level_metering_points = models.ManyToManyField("MeteringPoint", blank=True)
     energy_price = models.ForeignKey(
-        EnergyPrice,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True
+        EnergyPrice, on_delete=models.SET_NULL, blank=True, null=True
     )
     load_profile = models.ForeignKey(
-        "LoadProfile",
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True
+        "LoadProfile", on_delete=models.SET_NULL, blank=True, null=True
     )
 
     def __str__(self):
-        return f"{self.name}, {', '.join(list(self.energymeter_set.all().values_list('id_int',flat=True)))} ({self.utility.name if self.utility else '-'})"
+        id_int_list = ", ".join(
+            list(self.energymeter_set.all().values_list("id_int", flat=True))
+        )
+        utility_name = self.utility.name if self.utility else "-"
+        return f"{self.name}, {id_int_list} ({utility_name})"
 
-    def energy_data(self, start_datetime=None, end_datetime=None, interval_length=60*60*24, use_load_profile=False, timestamps=None):
+    def energy_data(
+        self,
+        start_datetime=None,
+        end_datetime=None,
+        interval_length=60 * 60 * 24,
+        use_load_profile=False,
+        timestamps=None,
+    ):
 
         if start_datetime is None and end_datetime is None and timestamps is None:
             return [], []
 
         if timestamps is None:
             timestamps = calculate_timestamps(
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval_length=interval_length,
-                    include_start=True,
-                    include_end=True,
-                )
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval_length=interval_length,
+                include_start=True,
+                include_end=True,
+            )
         else:
             start_datetime = datetime.fromtimestamp(timestamps[0], pytz.timezone("utc"))
             end_datetime = datetime.fromtimestamp(timestamps[-1], pytz.timezone("utc"))
@@ -374,7 +405,7 @@ class MeteringPoint(MeteringPointProto):
         if start_datetime >= end_datetime:
             return [], []
 
-        data = np.zeros((timestamps.size-1,))
+        data = np.zeros((timestamps.size - 1,))
 
         for meter in self.energymeter_set.all():
             _, energy_data = meter.energy_data(timestamps=timestamps)
@@ -390,19 +421,28 @@ class MeteringPoint(MeteringPointProto):
     def update_calculated_energy_deltas(self, start_datetime, end_datetime):
 
         for interval_length in CalculatedMeteringPointEnergyDeltaInterval.objects.all():
-            timestamps, data = self.energy_data(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length.get_interval_length())
+            timestamps, data = self.energy_data(
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval_length=interval_length.get_interval_length(),
+            )
 
-            CalculatedMeteringPointEnergyDelta.objects.filter(metering_point=self, interval_length=interval_length).delete()
+            CalculatedMeteringPointEnergyDelta.objects.filter(
+                metering_point=self, interval_length=interval_length
+            ).delete()
             new_items = []
             for i in range(len(data)):
-                new_items.append(CalculatedMeteringPointEnergyDelta(
+                new_items.append(
+                    CalculatedMeteringPointEnergyDelta(
                         interval_length=interval_length,
                         energy_delta=data[i],
-                        reading_date=datetime.fromtimestamp(timestamps[i]).replace(tzinfo=pytz.timezone("UTC")),
-                        metering_point=self
-                    ))
+                        reading_date=datetime.fromtimestamp(timestamps[i]).replace(
+                            tzinfo=pytz.utc
+                        ),
+                        metering_point=self,
+                    )
+                )
             CalculatedMeteringPointEnergyDelta.objects.bulk_create(new_items)
-
 
     def get_first_datetime(self, default=None):
         if self.energymeter_set.count() == 0:
@@ -410,7 +450,7 @@ class MeteringPoint(MeteringPointProto):
 
         first_datetime = default
         for meter in self.energymeter_set.all():
-            first_datetime_tmp = meter.get_first_datetime(default=datetime.now())
+            first_datetime_tmp = meter.get_first_datetime(default=timezone.now())
 
             if type(first_datetime) is datetime:
                 if first_datetime_tmp < first_datetime:
@@ -420,14 +460,15 @@ class MeteringPoint(MeteringPointProto):
 
         return first_datetime
 
-
     def get_last_datetime(self, default=None):
         if self.energymeter_set.count() == 0:
             return default
 
         last_datetime = default
         for meter in self.energymeter_set.all():
-            last_datetime_tmp = meter.get_last_datetime(default=datetime.fromtimestamp(0))
+            last_datetime_tmp = meter.get_last_datetime(
+                default=datetime(1970, 1, 1, 0, 0, tzinfo=pytz.utc)
+            )
 
             if type(last_datetime) is datetime:
                 if last_datetime_tmp > last_datetime:
@@ -443,7 +484,6 @@ class MeteringPoint(MeteringPointProto):
             count += energy_meter.energyreading_set.count()
         return count
 
-
     class Meta:
         ordering = ("name",)
 
@@ -453,7 +493,14 @@ class MeteringPointAttribute(Attribute):
 
 
 class VirtualMeteringPoint(MeteringPointProto):
-    calculation = models.TextField(default="", blank=True, help_text="mp(MeteringPoint.pk) for referencing a MeteringPoint, vmp(VirtualMeteringPoint.pk) for referencing a VirtualMeteringPoint")
+    calculation = models.TextField(
+        default="",
+        blank=True,
+        help_text=(
+            "mp(MeteringPoint.pk) for referencing a MeteringPoint, "
+            "vmp(VirtualMeteringPoint.pk) for referencing a VirtualMeteringPoint"
+        ),
+    )
     in_operation_from = models.DateField(null=True, blank=True)
     in_operation_to = models.DateField(null=True, blank=True)
     category = models.ForeignKey(
@@ -465,10 +512,7 @@ class VirtualMeteringPoint(MeteringPointProto):
     )
 
     unit_area = models.ForeignKey(
-        CalculationUnitArea,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True
+        CalculationUnitArea, on_delete=models.CASCADE, null=True, blank=True
     )
 
     apply_weather_adjustment = models.BooleanField(default=False)
@@ -476,28 +520,32 @@ class VirtualMeteringPoint(MeteringPointProto):
     def __str__(self):
         return f"{self.name} ({self.utility.name})"
 
-
-    def eval(self, start_datetime, end_datetime, interval_length=60*60):
-        return eval_calculation(calculation=self.calculation, start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length)
+    def eval(self, start_datetime, end_datetime, interval_length=60 * 60):
+        return eval_calculation(
+            calculation=self.calculation,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval_length=interval_length,
+        )
 
     def regex_calculation(self, token):
-        """finds a regex tocken and add the resulting group matches to a list
-        """
+        """finds a regex tocken and add the resulting group matches to a list"""
         matches = []
-        for matchNum, match in enumerate(re.finditer(token, self.calculation, re.MULTILINE), start=1):
+        for matchNum, match in enumerate(
+            re.finditer(token, self.calculation, re.MULTILINE), start=1
+        ):
             for groupNum in range(0, len(match.groups())):
                 matches.append(match.group(groupNum + 1))
         return matches
 
     def get_mp_ids_from_calculation(self):
-        return self.regex_calculation(token="(?<!v)mp\((\d+)\)")
+        return self.regex_calculation(token=r"(?<!v)mp\((\d+)\)")
 
     def get_vmp_ids_from_calculation(self):
-        return self.regex_calculation(token="vmp\((\d+)\)")
-
+        return self.regex_calculation(token=r"vmp\((\d+)\)")
 
     def check_calculation(self):
-        #fixme add dependancy check for vmps
+        # fixme add dependancy check for vmps
 
         if self.calculation == "":
             return None, "calculation is empty string"
@@ -518,25 +566,37 @@ class VirtualMeteringPoint(MeteringPointProto):
             return result
 
         try:
-            result = simple_eval(self.calculation, functions={"mp": mp_data, "vmp":vmp_data})
+            result = simple_eval(
+                self.calculation, functions={"mp": mp_data, "vmp": vmp_data}
+            )
             return result, ""
-        except:
+        except Exception:
             return None, traceback.format_exc()
 
     def update_calculated_energy_deltas(self, start_datetime, end_datetime):
 
         for interval_length in CalculatedMeteringPointEnergyDeltaInterval.objects.all():
-            timestamps, data = self.eval(start_datetime=start_datetime, end_datetime=end_datetime, interval_length=interval_length.get_interval_length())
+            timestamps, data = self.eval(
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval_length=interval_length.get_interval_length(),
+            )
 
-            CalculatedVirtualMeteringPointEnergyDelta.objects.filter(virtual_metering_point=self, interval_length=interval_length).delete()
+            CalculatedVirtualMeteringPointEnergyDelta.objects.filter(
+                virtual_metering_point=self, interval_length=interval_length
+            ).delete()
             new_items = []
             for i in range(len(data)):
-                new_items.append(CalculatedVirtualMeteringPointEnergyDelta(
+                new_items.append(
+                    CalculatedVirtualMeteringPointEnergyDelta(
                         interval_length=interval_length,
                         energy_delta=data[i],
-                        reading_date=datetime.fromtimestamp(timestamps[i]).replace(tzinfo=pytz.timezone("UTC")),
-                        virtual_metering_point=self
-                    ))
+                        reading_date=datetime.fromtimestamp(timestamps[i]).replace(
+                            tzinfo=pytz.timezone("UTC")
+                        ),
+                        virtual_metering_point=self,
+                    )
+                )
             CalculatedVirtualMeteringPointEnergyDelta.objects.bulk_create(new_items)
 
     class Meta:
@@ -559,20 +619,24 @@ class EnergyMeter(models.Model):
     factor = models.FloatField(default=1, blank=True)
     initial_value = EnergyValue(default=0, blank=True)
     meter_type_choices = [
-        ("upcounting","Up-Counting"),
-        ("energydelta","Energy Delta"),
+        ("upcounting", "Up-Counting"),
+        ("energydelta", "Energy Delta"),
     ]
 
-    meter_type = models.CharField(max_length=255, default="upcounting", choices=meter_type_choices)
+    meter_type = models.CharField(
+        max_length=255, default="upcounting", choices=meter_type_choices
+    )
 
     def __str__(self):
-        return f"{self.metering_point.name if self.metering_point else '-'}({self.pk}) ({self.id_ext}, {self.id_int})"
+        metering_point_name = self.metering_point.name if self.metering_point else "-"
+        return f"{metering_point_name}({self.pk}) ({self.id_ext}, {self.id_int})"
 
-    def get_raw_readings(self, start_datetime=None, end_datetime=None, datetime_boundary="outside"):
+    def get_raw_readings(
+        self, start_datetime=None, end_datetime=None, datetime_boundary="outside"
+    ):
 
         if start_datetime is None and end_datetime is None:
             return self.energyreading_set.all()
-
 
         if start_datetime is None:
             start_datetime = self.energyreading_set.first().reading_date
@@ -582,29 +646,47 @@ class EnergyMeter(models.Model):
 
         if datetime_boundary == "outside":
 
-            start_datetime_tmp = self.energyreading_set.filter(reading_date__lte=start_datetime).last() # get the datetime that is right outside the window
+            start_datetime_tmp = self.energyreading_set.filter(
+                reading_date__lte=start_datetime
+            ).last()  # get the datetime that is right outside the window
 
             if start_datetime_tmp:
                 start_datetime = start_datetime_tmp.reading_date
 
-            end_datetime_tmp = self.energyreading_set.filter(reading_date__gte=end_datetime).first() # get the datetime that is right outside the window
+            end_datetime_tmp = self.energyreading_set.filter(
+                reading_date__gte=end_datetime
+            ).first()  # get the datetime that is right outside the window
 
             if end_datetime_tmp:
                 end_datetime = end_datetime_tmp.reading_date
 
-        return self.energyreading_set.filter(reading_date__gte=start_datetime, reading_date__lte=end_datetime)
+        return self.energyreading_set.filter(
+            reading_date__gte=start_datetime, reading_date__lte=end_datetime
+        )
 
+    def get_readings(
+        self,
+        start_datetime=None,
+        end_datetime=None,
+        dtype=float,
+        apply_factor=True,
+        convert_to_upcounting=True,
+        datetime_boundary="outside",
+    ):
 
-    def get_readings(self, start_datetime=None, end_datetime=None, dtype=float, apply_factor=True, convert_to_upcounting=True, datetime_boundary="outside"):
+        energy_readings = self.get_raw_readings(
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            datetime_boundary=datetime_boundary,
+        )
 
-        energy_readings = self.get_raw_readings(start_datetime=start_datetime, end_datetime=end_datetime, datetime_boundary=datetime_boundary)
-
-        meter_readings = [dtype(item) for item in energy_readings.values_list('reading',flat=True)]
-        meter_timestamps = [item.timestamp() for item in energy_readings.values_list('reading_date',flat=True)]
-
-        #if self.in_operation_from and datetime.fromordinal(self.in_operation_from.toordinal()).timestamp() not in meter_timestamps:
-        #    meter_timestamps = [datetime.fromordinal(self.in_operation_from.toordinal()).timestamp()] + meter_timestamps
-        #    meter_readings = [dtype(self.initial_value)] + meter_readings
+        meter_readings = [
+            dtype(item) for item in energy_readings.values_list("reading", flat=True)
+        ]
+        meter_timestamps = [
+            item.timestamp()
+            for item in energy_readings.values_list("reading_date", flat=True)
+        ]
 
         meter_readings = np.asarray(meter_readings)
         meter_timestamps = np.asarray(meter_timestamps)
@@ -612,16 +694,25 @@ class EnergyMeter(models.Model):
         if self.meter_type in ["energydelta"] and convert_to_upcounting:
             meter_readings = np.cumsum(meter_readings)
             if self.in_operation_from is not None:
-                initial_date = datetime.fromordinal(self.in_operation_from.toordinal()).timestamp()
-                meter_readings = np.insert(meter_readings, 0,0)
+                initial_date = datetime.fromordinal(
+                    self.in_operation_from.toordinal()
+                ).timestamp()
+                meter_readings = np.insert(meter_readings, 0, 0)
                 meter_timestamps = np.insert(meter_timestamps, 0, initial_date)
 
         if apply_factor:
-            meter_readings *= self.factor # apply factor
+            meter_readings *= self.factor  # apply factor
 
         return meter_timestamps, meter_readings
 
-    def energy_data(self, start_datetime=None, end_datetime=None, interval_length=60*60*24, use_load_profile=False, timestamps=None):
+    def energy_data(
+        self,
+        start_datetime=None,
+        end_datetime=None,
+        interval_length=60 * 60 * 24,
+        use_load_profile=False,
+        timestamps=None,
+    ):
 
         if start_datetime is None and end_datetime is None and timestamps is None:
             return [], []
@@ -629,28 +720,28 @@ class EnergyMeter(models.Model):
         if timestamps is None:
             if start_datetime >= end_datetime:
                 return [], []
+
             timestamps = calculate_timestamps(
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval_length=interval_length,
-                    include_start=True,
-                    include_end=True,
-                )
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval_length=interval_length,
+                include_start=True,
+                include_end=True,
+            )
         else:
             start_datetime = datetime.fromtimestamp(timestamps[0], pytz.timezone("utc"))
             end_datetime = datetime.fromtimestamp(timestamps[-1], pytz.timezone("utc"))
 
-
-
-        meter_timestamps, meter_readings = self.get_readings(start_datetime=start_datetime, end_datetime=end_datetime)
+        meter_timestamps, meter_readings = self.get_readings(
+            start_datetime=start_datetime, end_datetime=end_datetime
+        )
 
         if len(meter_readings) < 2:
-            return timestamps[1:], np.zeros((timestamps.size-1,))
+            return timestamps[1:], np.zeros((timestamps.size - 1,))
 
         energy_data = np.diff(np.interp(timestamps, meter_timestamps, meter_readings))
 
         return timestamps[1:], energy_data
-
 
     def check_readings(self):
         meter_timestamps, meter_readings = self.get_readings(convert_to_upcounting=True)
@@ -672,7 +763,7 @@ class EnergyMeter(models.Model):
         return energy_reading.reading_date
 
     class Meta:
-        ordering = ("metering_point__name","pk")
+        ordering = ("metering_point__name", "pk")
 
 
 class EnergyMeterVariableValueType(ListElement):
@@ -684,9 +775,10 @@ class EnergyMeterAttribute(Attribute):
 
 
 class EnergyReading(models.Model):
-    reading_date = models.DateTimeField(db_index=True) # timestamp of the reading
-    reading = EnergyValue(default=0) # upcountig meterreading
+    reading_date = models.DateTimeField(db_index=True)  # timestamp of the reading
+    reading = EnergyValue(default=0)  # upcountig meterreading
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
+
     class Meta:
         ordering = ("reading_date",)
 
@@ -733,8 +825,10 @@ class DataEntryFormElement(models.Model):
 class AttachmentCategory(ListElement):
     pass
 
+
 class AttachmentGroup(ListElement):
     pass
+
 
 class Attachment(models.Model):
     label = models.CharField(max_length=255)
@@ -742,18 +836,14 @@ class Attachment(models.Model):
     datetime_changed = models.DateTimeField(auto_now=True, auto_now_add=False)
     datetime_added = models.DateTimeField(auto_now=False, auto_now_add=True)
     category = models.ForeignKey(
-            AttachmentCategory,
-            on_delete=models.SET_NULL,
-            blank=True,
-            null=True,
-            help_text=""
-        )
+        AttachmentCategory,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        help_text="",
+    )
 
-    groups = models.ManyToManyField(
-            AttachmentGroup,
-            blank=True,
-            help_text=""
-        )
+    groups = models.ManyToManyField(AttachmentGroup, blank=True, help_text="")
 
     def __str__(self):
         return f"{self.label} ({os.path.basename(self.attached_file.name)})"
@@ -761,35 +851,41 @@ class Attachment(models.Model):
     class Meta:
         ordering = ["label", "datetime_added"]
 
+
 class MeteringPointAttachment(models.Model):
-    metering_point = models.ForeignKey(
-        MeteringPoint, on_delete=models.CASCADE)
-    attachment = models.ForeignKey(
-        Attachment, on_delete=models.CASCADE
-    )
+    metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
+    attachment = models.ForeignKey(Attachment, on_delete=models.CASCADE)
 
 
 class VirtualMeteringPointAttachment(models.Model):
     virtual_metering_point = models.ForeignKey(
-        VirtualMeteringPoint, on_delete=models.CASCADE)
-    attachment = models.ForeignKey(
-        Attachment, on_delete=models.CASCADE
+        VirtualMeteringPoint, on_delete=models.CASCADE
     )
+    attachment = models.ForeignKey(Attachment, on_delete=models.CASCADE)
+
+    attachment = models.ForeignKey(Attachment, on_delete=models.CASCADE)
 
 
 class EnergyMeterAttachment(models.Model):
-    energy_meter = models.ForeignKey(
-        EnergyMeter, on_delete=models.CASCADE)
-    attachment = models.ForeignKey(
-        Attachment, on_delete=models.CASCADE
-    )
+    energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
+    attachment = models.ForeignKey(Attachment, on_delete=models.CASCADE)
 
 
 class CalculatedMeteringPointEnergyDeltaInterval(models.Model):
-    interval_length = models.CharField(max_length=20, default="day", help_text="can be hour, day, month, quater, year or number in seconds")
+    interval_length = models.CharField(
+        max_length=20,
+        default="day",
+        help_text="can be hour, day, month, quater, year or number in seconds",
+    )
 
     def get_interval_length(self):
-        if self.interval_length.lstrip('-').replace('.','',1).replace('e-','',1).replace('e','',1).isdigit():
+        if (
+            self.interval_length.lstrip("-")
+            .replace(".", "", 1)
+            .replace("e-", "", 1)
+            .replace("e", "", 1)
+            .isdigit()
+        ):
             return float(self.interval_length)
 
         return self.interval_length
@@ -797,16 +893,22 @@ class CalculatedMeteringPointEnergyDeltaInterval(models.Model):
     def __str__(self):
         return f"{self.interval_length}"
 
-class CalculatedMeteringPointEnergyDeltaProto(models.Model):
-    """
-    """
-    interval_length = models.ForeignKey(CalculatedMeteringPointEnergyDeltaInterval, on_delete=models.CASCADE)
-    energy_delta = EnergyValue()
-    reading_date = models.DateTimeField(db_index=True) # timestamp of the reading
 
+class CalculatedMeteringPointEnergyDeltaProto(models.Model):
+    """ """
+
+    interval_length = models.ForeignKey(
+        CalculatedMeteringPointEnergyDeltaInterval, on_delete=models.CASCADE
+    )
+    energy_delta = EnergyValue()
+    reading_date = models.DateTimeField(db_index=True)  # timestamp of the reading
 
     def energy_data(self, start_datetime, end_datetime, interval_length):
-        return self.objects.filter(start_datetime_gte=start_datetime, end_datetime_lte=end_datetime, interval_length=interval_length)
+        return self.objects.filter(
+            start_datetime_gte=start_datetime,
+            end_datetime_lte=end_datetime,
+            interval_length=interval_length,
+        )
 
     class Meta:
         ordering = ["reading_date"]
@@ -817,21 +919,26 @@ class CalculatedMeteringPointEnergyDelta(CalculatedMeteringPointEnergyDeltaProto
     metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
 
 
-class CalculatedVirtualMeteringPointEnergyDelta(CalculatedMeteringPointEnergyDeltaProto):
-    virtual_metering_point = models.ForeignKey(VirtualMeteringPoint, on_delete=models.CASCADE)
+class CalculatedVirtualMeteringPointEnergyDelta(
+    CalculatedMeteringPointEnergyDeltaProto
+):
+    virtual_metering_point = models.ForeignKey(
+        VirtualMeteringPoint, on_delete=models.CASCADE
+    )
 
 
 class LoadProfileProto(models.Model):
     period_choices = (
-        ('year','Year'),
-        ('month','Month'),
-        ('week','Week'),
-        ('day','Day'),
-        ('hour','Hour'),
-        ('none','None'),
+        ("year", "Year"),
+        ("month", "Month"),
+        ("week", "Week"),
+        ("day", "Day"),
+        ("hour", "Hour"),
+        ("none", "None"),
     )
     label = models.CharField(max_length=255)
     period = models.CharField(max_length=10, choices=period_choices, default="week")
+
     class Meta:
         ordering = ["label"]
         abstract = True
@@ -842,14 +949,15 @@ class LoadProfile(LoadProfileProto):
 
 
 class LoadProfileValueProto(models.Model):
-    date = models.DateTimeField(db_index=True) # timestamp of the value
+    date = models.DateTimeField(db_index=True)  # timestamp of the value
     value = models.FloatField()
+
     class Meta:
         ordering = ("date",)
         abstract = True
 
 
 class LoadProfileValue(LoadProfileValueProto):
+    """ """
+
     load_profile = models.ForeignKey(LoadProfile, on_delete=models.CASCADE)
-
-

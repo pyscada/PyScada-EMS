@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from pyscada.ems import PROTOCOL_ID
 from django.db import migrations
+
+from pyscada.ems import PROTOCOL_ID
 
 
 def forwards_func(apps, schema_editor):

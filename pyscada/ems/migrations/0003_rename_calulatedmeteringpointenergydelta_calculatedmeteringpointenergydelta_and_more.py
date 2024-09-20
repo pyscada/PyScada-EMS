@@ -6,37 +6,37 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('pyscada', '0109_alter_variable_value_class'),
-        ('ems', '0002_initial'),
+        ("pyscada", "0109_alter_variable_value_class"),
+        ("ems", "0002_initial"),
     ]
 
     operations = [
         migrations.RenameModel(
-            old_name='CalulatedMeteringPointEnergyDelta',
-            new_name='CalculatedMeteringPointEnergyDelta',
+            old_name="CalulatedMeteringPointEnergyDelta",
+            new_name="CalculatedMeteringPointEnergyDelta",
         ),
         migrations.RenameModel(
-            old_name='CalulatedMeteringPointEnergyDeltaInterval',
-            new_name='CalculatedMeteringPointEnergyDeltaInterval',
+            old_name="CalulatedMeteringPointEnergyDeltaInterval",
+            new_name="CalculatedMeteringPointEnergyDeltaInterval",
         ),
         migrations.RenameModel(
-            old_name='CalulatedVirtualMeteringPointEnergyDelta',
-            new_name='CalculatedVirtualMeteringPointEnergyDelta',
+            old_name="CalulatedVirtualMeteringPointEnergyDelta",
+            new_name="CalculatedVirtualMeteringPointEnergyDelta",
         ),
         migrations.RenameModel(
-            old_name='CalulationUnitArea',
-            new_name='CalculationUnitArea',
+            old_name="CalulationUnitArea",
+            new_name="CalculationUnitArea",
         ),
         migrations.RenameModel(
-            old_name='CalulationUnitAreaAttribute',
-            new_name='CalculationUnitAreaAttribute',
+            old_name="CalulationUnitAreaAttribute",
+            new_name="CalculationUnitAreaAttribute",
         ),
         migrations.RenameModel(
-            old_name='CalulationUnitAreaPart',
-            new_name='CalculationUnitAreaPart',
+            old_name="CalulationUnitAreaPart",
+            new_name="CalculationUnitAreaPart",
         ),
         migrations.RenameModel(
-            old_name='CalulationUnitAreaPeriod',
-            new_name='CalculationUnitAreaPeriod',
+            old_name="CalulationUnitAreaPeriod",
+            new_name="CalculationUnitAreaPeriod",
         ),
     ]

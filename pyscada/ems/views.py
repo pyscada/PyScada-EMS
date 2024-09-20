@@ -1,21 +1,17 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import traceback
+import logging
 from uuid import uuid4
 
 from django.conf import settings
-from django.shortcuts import render
 from django.http import Http404
-from django.views.decorators.csrf import requires_csrf_token
-from django.template.loader import get_template
 from django.template.response import TemplateResponse
+from django.views.decorators.csrf import requires_csrf_token
 
 from pyscada.core import version as core_version
-from pyscada.hmi.views import unauthenticated_redirect
 from pyscada.ems.models import DataEntryForm
-
-import logging
+from pyscada.hmi.views import unauthenticated_redirect
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +21,6 @@ logger = logging.getLogger(__name__)
 def ems_view(request):
     base_template = "base.html"
     form_template = "ems_form.html"
-    STATIC_URL = (
-        str(settings.STATIC_URL) if hasattr(settings, "STATIC_URL") else "static"
-    )
     add_context = {}
 
     javascript_files_list = []
@@ -43,9 +36,9 @@ def ems_view(request):
         },
         "user": request.user,
         "version_string": core_version,
-        "link_target": settings.LINK_TARGET
-        if hasattr(settings, "LINK_TARGET")
-        else "_blank",
+        "link_target": (
+            settings.LINK_TARGET if hasattr(settings, "LINK_TARGET") else "_blank"
+        ),
         "javascript_files_list": javascript_files_list,
         "css_files_list": css_files_list,
     }
@@ -60,9 +53,6 @@ def ems_view(request):
 def form_add_data(request, form_id):
     base_template = "base.html"
     form_template = "ems_form.html"
-    STATIC_URL = (
-        str(settings.STATIC_URL) if hasattr(settings, "STATIC_URL") else "static"
-    )
     add_context = {}
 
     javascript_files_list = []
@@ -79,9 +69,9 @@ def form_add_data(request, form_id):
         "user": request.user,
         "uuid": uuid4(),
         "version_string": core_version,
-        "link_target": settings.LINK_TARGET
-        if hasattr(settings, "LINK_TARGET")
-        else "_blank",
+        "link_target": (
+            settings.LINK_TARGET if hasattr(settings, "LINK_TARGET") else "_blank"
+        ),
         "javascript_files_list": javascript_files_list,
         "css_files_list": css_files_list,
     }
@@ -96,9 +86,6 @@ def form_add_data(request, form_id):
 def form_add_data_submit(request, form_id):
     base_template = "base.html"
     form_template = "ems_form_submit.html"
-    STATIC_URL = (
-        str(settings.STATIC_URL) if hasattr(settings, "STATIC_URL") else "static"
-    )
     add_context = {}
 
     javascript_files_list = []
@@ -117,9 +104,9 @@ def form_add_data_submit(request, form_id):
         "user": request.user,
         "uuid": uuid4(),
         "version_string": core_version,
-        "link_target": settings.LINK_TARGET
-        if hasattr(settings, "LINK_TARGET")
-        else "_blank",
+        "link_target": (
+            settings.LINK_TARGET if hasattr(settings, "LINK_TARGET") else "_blank"
+        ),
         "javascript_files_list": javascript_files_list,
         "css_files_list": css_files_list,
     }

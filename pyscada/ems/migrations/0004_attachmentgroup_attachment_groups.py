@@ -6,24 +6,40 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('ems', '0003_rename_calulatedmeteringpointenergydelta_calculatedmeteringpointenergydelta_and_more'),
+        (
+            "ems",
+            (
+                "0003_rename_calulatedmeteringpointenergydelta"
+                "_calculatedmeteringpointenergydelta_and_more"
+            ),
+        ),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='AttachmentGroup',
+            name="AttachmentGroup",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=255)),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=255)),
             ],
             options={
-                'ordering': ['name'],
-                'abstract': False,
+                "ordering": ["name"],
+                "abstract": False,
             },
         ),
         migrations.AddField(
-            model_name='attachment',
-            name='groups',
-            field=models.ManyToManyField(blank=True, null=True, to='ems.attachmentgroup'),
+            model_name="attachment",
+            name="groups",
+            field=models.ManyToManyField(
+                blank=True, null=True, to="ems.attachmentgroup"
+            ),
         ),
     ]

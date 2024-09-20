@@ -11,4 +11,4 @@ class PyScadaEMSConfig(AppConfig):
     default_auto_field = "django.db.models.AutoField"
 
     def ready(self):
-        import pyscada.ems.signals
+        pass
