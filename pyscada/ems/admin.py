@@ -1,8 +1,13 @@
 import logging
 import traceback
+from datetime import datetime
 
+import pytz
 from django.contrib import admin
 from django.db.models import Case, Count, When
+from django.http import HttpResponse
+from django.utils import timezone
+from django.utils.safestring import mark_safe
 
 from pyscada.admin import admin_site
 from pyscada.ems.models import (
@@ -23,12 +28,15 @@ from pyscada.ems.models import (
     CalculationUnitAreaPeriod,
     DataEntryForm,
     DataEntryFormElement,
+    DataExport,
     EnergyMeter,
     EnergyMeterAttachment,
     EnergyMeterAttribute,
     EnergyPrice,
     EnergyPricePeriod,
     EnergyReading,
+    EnergyReadingComment,
+    EnergyReadingTariffRegister,
     FloatAttributeKey,
     MeteringPoint,
     MeteringPointAttachment,
@@ -103,6 +111,40 @@ def get_enegrymeter_ordering_by_meteringpoint_attribute_key(key_id):
         *(When(pk=id, then=pos) for pos, id in enumerate(key_ids, start=1))
     )
     return preferred
+
+
+@admin.action(description="Update calculated energy deltas")
+def update_calculated_energy_deltas(modeladmin, request, queryset):
+    for mp in queryset.all():
+        start_year = mp.get_first_datetime(default=timezone.now()).year
+        mp.update_calculated_energy_deltas(
+            start_datetime=datetime(start_year, 1, 1, 0, 0, tzinfo=pytz.utc),
+            end_datetime=mp.get_last_datetime(default=timezone.now()),
+        )
+
+
+@admin.action(description="Download Data (only one selection)")
+def download_data(modeladmin, request, queryset):
+    dx = queryset.first()
+    header, data = dx.prepare_data()
+    buffer = dx.make_buffer(header, data)
+
+    if dx.file_format == "csv":
+        content_type = "application/csv"
+    elif dx.file_format == "xlsx":
+        content_type = "application/xlsx"
+    elif dx.file_format == "xlsx":
+        content_type = "application/json"
+    else:
+        return None  # todo throw error
+
+    return HttpResponse(
+        buffer.getvalue(),
+        headers={
+            "Content-Type": content_type,
+            "Content-Disposition": 'attachment; filename="%s"' % dx.full_filename,
+        },
+    )
 
 
 class IsSubMeterFilter(admin.SimpleListFilter):
@@ -212,6 +254,12 @@ class EnergyMeterAttachmentInline(admin.StackedInline):
     show_change_link = True
 
 
+class EnergyReadingCommentInline(admin.StackedInline):
+    model = EnergyReadingComment
+    extra = 0
+    show_change_link = True
+
+
 class EnergyMeterAdmin(admin.ModelAdmin):
     list_display = (
         "id",
@@ -278,6 +326,7 @@ class EnergyReadingAdmin(admin.ModelAdmin):
         "energy_meter",
     )
     list_filter = ("energy_meter",)
+    inlines = [EnergyReadingCommentInline]
     save_as = True
     save_as_continue = True
 
@@ -349,6 +398,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
         MeteringPointAttributeInline,
         MeteringPointAttachmentInline,
     ]
+    actions = [update_calculated_energy_deltas]
 
 
 class VirtualMeteringPointAdmin(admin.ModelAdmin):
@@ -371,6 +421,7 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
         VirtualMeteringPointAttributeInline,
         VirtualMeteringPointAttachmentInline,
     ]
+    actions = [update_calculated_energy_deltas]
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
@@ -654,6 +705,35 @@ class EnergyMeterAttachmentAdmin(admin.ModelAdmin):
         return False
 
 
+class EnergyReadingTariffRegisterAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
+class DataExportAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "label",
+        "file_format",
+        "periode_from",
+        "periode_to",
+        "interval_length",
+        "target_timezone",
+        "download",
+    )
+    list_display_links = [
+        "id",
+        "label",
+    ]
+    list_filter = ("interval_length", "file_format", "include_cost", "include_coverage")
+    filter_horizontal = ("metering_points", "virtual_metering_points", "attribute_keys")
+    actions = [download_data]
+
+    def download(self, obj):
+        return mark_safe(f'<a href="/ems/data_export/{obj.pk}">Download</a>')
+
+
 admin_site.register(EnergyMeter, EnergyMeterAdmin)
 admin_site.register(MeteringPoint, MeteringPointAdmin)
 admin_site.register(Address, AddressAdmin)
@@ -662,6 +742,8 @@ admin_site.register(BuildingCategory, BuildingCategoryAdmin)
 admin_site.register(Building, BuildingAdmin)
 admin_site.register(MeteringPointLocation, MeteringPointLocationAdmin)
 admin_site.register(EnergyReading, EnergyReadingAdmin)
+admin_site.register(EnergyReadingTariffRegister, EnergyReadingTariffRegisterAdmin)
+
 admin_site.register(Utility, UtilityAdmin)
 
 admin_site.register(EnergyPrice, EnergyPriceAdmin)
@@ -699,3 +781,4 @@ admin_site.register(
 admin_site.register(CalculatedMeteringPointEnergyDeltaInterval)
 
 admin_site.register(DataEntryForm, DataEntryFormAdmin)
+admin_site.register(DataExport, DataExportAdmin)

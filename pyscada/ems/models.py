@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+import csv
+import io
 import os
 import re
 import traceback
@@ -8,9 +10,12 @@ from datetime import datetime
 
 import numpy as np
 import pytz
+import xlsxwriter
 from dateutil.relativedelta import relativedelta
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from scipy.interpolate import interp1d
 from simpleeval import simple_eval
 
 from pyscada.models import Unit
@@ -116,6 +121,32 @@ class CalculationSyntaxError(Exception):
 def eval_calculation(
     calculation, start_datetime, end_datetime, interval_length=60 * 60, timestamps=None
 ):
+
+    if start_datetime is None and end_datetime is None and timestamps is None:
+        return [], []
+
+    if timestamps is None:
+        timestamps = calculate_timestamps(
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval_length=interval_length,
+            include_start=False,
+            include_end=True,
+        )
+    else:
+        start_datetime = datetime.fromtimestamp(timestamps[0], pytz.timezone("utc"))
+        end_datetime = datetime.fromtimestamp(timestamps[-1], pytz.timezone("utc"))
+
+        timestamps = calculate_timestamps(
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval_length=interval_length,
+            include_start=False,
+            include_end=True,
+        )
+
+    if start_datetime >= end_datetime:
+        return [], []
 
     if calculation == "":
         return timestamps, np.zeros(timestamps.shape)
@@ -262,6 +293,23 @@ class CalculationUnitArea(models.Model):
     def __str__(self):
         return f"{self.name}"
 
+    """
+    def areas(self, timestamps):
+        attribute_valid_from = self.calculationunitareaattribute_set.values_list(
+                                                        "valid_from",flat=True)
+        area_timestamps = [ datetime.fromordinal(item.toordinal()).timestamp() \
+                            for item in attribute_valid_from]
+        data = {}
+        for item in self.calculationunitareaattribute_set():
+            energy_price_list = self.energypriceperiod_set.values_list(
+                            "price",
+                            flat=True)
+            area_data = [float(item)for item in energy_price_list]
+            data[item.] = interp1d(price_timestamps, price_data, kind='previous',
+                                    fill_value="extrapolate")(timestamps)
+        return
+    """
+
     class Meta:
         ordering = ["name"]
 
@@ -311,6 +359,21 @@ class EnergyPrice(models.Model):
         return (
             f"{self.name}: {self.utility.name} in {self.unit.unit}/{self.per_unit.unit}"
         )
+
+    def energy_prices(self, timestamps):
+        """ """
+        price_timestamps = [
+            datetime.fromordinal(item.toordinal()).timestamp()
+            for item in self.energypriceperiod_set.values_list("valid_from", flat=True)
+        ]
+        price_data = [
+            float(item)
+            for item in self.energypriceperiod_set.values_list("price", flat=True)
+        ]
+        # fixme handle price changes within a timestamps interval
+        return interp1d(
+            price_timestamps, price_data, kind="previous", fill_value="extrapolate"
+        )(timestamps)
 
 
 class EnergyPricePeriod(models.Model):
@@ -377,6 +440,15 @@ class MeteringPoint(MeteringPointProto):
         )
         utility_name = self.utility.name if self.utility else "-"
         return f"{self.name}, {id_int_list} ({utility_name})"
+
+    def get_energy_price(self):
+        if self.energy_price is not None:
+            return self.energy_price
+
+        if self.higher_level_metering_points is None:
+            return None
+
+        return self.higher_level_metering_points.first().get_energy_price()
 
     def energy_data(
         self,
@@ -528,6 +600,40 @@ class VirtualMeteringPoint(MeteringPointProto):
             interval_length=interval_length,
         )
 
+    def energy_data(
+        self,
+        start_datetime=None,
+        end_datetime=None,
+        interval_length=60 * 60 * 24,
+        use_load_profile=False,
+        timestamps=None,
+    ):
+
+        if start_datetime is None and end_datetime is None and timestamps is None:
+            return [], []
+
+        if timestamps is None:
+            timestamps = calculate_timestamps(
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval_length=interval_length,
+                include_start=True,
+                include_end=True,
+            )
+        else:
+            start_datetime = datetime.fromtimestamp(timestamps[0], pytz.timezone("utc"))
+            end_datetime = datetime.fromtimestamp(timestamps[-1], pytz.timezone("utc"))
+
+        if start_datetime >= end_datetime:
+            return [], []
+
+        return eval_calculation(
+            calculation=self.calculation,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval_length=interval_length,
+        )
+
     def regex_calculation(self, token):
         """finds a regex tocken and add the resulting group matches to a list"""
         matches = []
@@ -598,6 +704,58 @@ class VirtualMeteringPoint(MeteringPointProto):
                     )
                 )
             CalculatedVirtualMeteringPointEnergyDelta.objects.bulk_create(new_items)
+
+    def get_first_datetime(self, default=None):
+
+        first_datetime = default
+
+        for vmp_id in self.get_vmp_ids_from_calculation():
+            vmp = VirtualMeteringPoint.objects.get(pk=int(vmp_id))
+            first_datetime_tmp = vmp.get_first_datetime(default=timezone.now())
+            if type(first_datetime) is datetime:
+                if first_datetime_tmp < first_datetime:
+                    first_datetime = first_datetime_tmp
+            else:
+                first_datetime = first_datetime_tmp
+
+        for mp_id in self.get_mp_ids_from_calculation():
+            mp = MeteringPoint.objects.get(pk=int(mp_id))
+            first_datetime_tmp = mp.get_first_datetime(default=timezone.now())
+            if type(first_datetime) is datetime:
+                if first_datetime_tmp < first_datetime:
+                    first_datetime = first_datetime_tmp
+            else:
+                first_datetime = first_datetime_tmp
+
+        return first_datetime
+
+    def get_last_datetime(self, default=None):
+
+        last_datetime = default
+
+        for vmp_id in self.get_vmp_ids_from_calculation():
+            vmp = VirtualMeteringPoint.objects.get(pk=int(vmp_id))
+            last_datetime_tmp = vmp.get_last_datetime(
+                default=datetime(1970, 1, 1, 0, 0, tzinfo=pytz.utc)
+            )
+            if type(last_datetime) is datetime:
+                if last_datetime_tmp > last_datetime:
+                    last_datetime = last_datetime_tmp
+            else:
+                last_datetime = last_datetime_tmp
+
+        for mp_id in self.get_mp_ids_from_calculation():
+            mp = MeteringPoint.objects.get(pk=int(mp_id))
+            last_datetime_tmp = mp.get_last_datetime(
+                default=datetime(1970, 1, 1, 0, 0, tzinfo=pytz.utc)
+            )
+            if type(last_datetime) is datetime:
+                if last_datetime_tmp > last_datetime:
+                    last_datetime = last_datetime_tmp
+            else:
+                last_datetime = last_datetime_tmp
+
+        return last_datetime
 
     class Meta:
         ordering = ("name",)
@@ -774,13 +932,25 @@ class EnergyMeterAttribute(Attribute):
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
 
 
+class EnergyReadingTariffRegister(ListElement):
+    pass
+
+
 class EnergyReading(models.Model):
     reading_date = models.DateTimeField(db_index=True)  # timestamp of the reading
     reading = EnergyValue(default=0)  # upcountig meterreading
     energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
+    tariff_register = models.ForeignKey(
+        EnergyReadingTariffRegister, blank=True, null=True, on_delete=models.CASCADE
+    )
 
     class Meta:
         ordering = ("reading_date",)
+
+
+class EnergyReadingComment(models.Model):
+    energy_reading = models.ForeignKey(EnergyReading, on_delete=models.CASCADE)
+    comment = models.CharField(max_length=255, default="", blank=True)
 
 
 class DataEntryForm(models.Model):
@@ -961,3 +1131,262 @@ class LoadProfileValue(LoadProfileValueProto):
     """ """
 
     load_profile = models.ForeignKey(LoadProfile, on_delete=models.CASCADE)
+
+
+class DataExport(models.Model):
+    """exports the engery data and meta data"""
+
+    label = models.CharField(max_length=255)
+
+    file_format_choices = (
+        ("csv", "CSV"),
+        ("xlsx", "Excel xlsx"),
+        ("json", "JSON"),
+    )
+    file_format = models.CharField(max_length=255, choices=file_format_choices)
+    periode_from = models.DateTimeField()
+    periode_to = models.DateTimeField()
+    interval_length = models.ForeignKey(
+        CalculatedMeteringPointEnergyDeltaInterval, on_delete=models.CASCADE
+    )
+    target_timezone_choices = (
+        ("UTC", "UTC"),
+        ("CET", "CET"),
+    )
+    target_timezone = models.CharField(max_length=255, choices=target_timezone_choices)
+
+    metering_points = models.ManyToManyField("MeteringPoint", blank=True)
+    virtual_metering_points = models.ManyToManyField("VirtualMeteringPoint", blank=True)
+    attribute_keys = models.ManyToManyField("AttributeKey", blank=True)
+    include_cost = models.BooleanField(help_text="add a column with the energy cost")
+    include_coverage = models.BooleanField(
+        help_text="add a column with the data coverage of virtual metering points"
+    )
+    export_file_name = models.CharField(
+        max_length=255,
+        help_text="name of the Export File without file extension",
+        blank=True,
+        default="",
+    )
+
+    @property
+    def periode_from_local(self):
+        return self.periode_from.replace(tzinfo=pytz.timezone(settings.TIME_ZONE))
+
+    @property
+    def periode_to_local(self):
+        return self.periode_to.replace(tzinfo=pytz.timezone(settings.TIME_ZONE))
+
+    @property
+    def full_filename(self):
+        filename = self.export_file_name
+        if filename == "":
+            filename = self.label.replace(" ", "_")
+            filename += "_"
+            filename += self.periode_from.isoformat()
+        filename += "." + self.file_format
+        return filename
+
+    def prepare_data(self):
+        """ """
+        interval_length = self.interval_length.interval_length
+        datetime_from = self.periode_from
+        datetime_to = self.periode_to
+        timestamps = calculate_timestamps(
+            datetime_from, datetime_to, interval_length=interval_length
+        )
+        target_timezone_name = self.target_timezone
+
+        # Header
+        header = []
+        header.append("label")
+        header.append("unit")
+        header.append("ID")
+        attribute_keys = self.attribute_keys.all()
+
+        for key in attribute_keys:
+            header.append(key.name)
+
+        header.append("Source Points")
+
+        for timestamp in timestamps[1:]:
+            # add one column per timestamp
+            dp_date = (
+                pytz.timezone(target_timezone_name)
+                .fromutc(datetime.fromtimestamp(timestamp))
+                .replace(tzinfo=None)
+            )
+            if self.file_format == "csv":
+                header.append(dp_date.isoformat())
+            elif self.file_format == "xlsx":
+                header.append(dp_date)
+            else:
+                header.append(dp_date)
+
+        data = []
+        for mp in self.metering_points.all():
+            data_row = []
+
+            data_row.append(mp.name)  # label/name
+            data_row.append(mp.unit.unit if mp.unit is not None else "-")  # unit
+            data_row.append(mp.pk)  # ID
+
+            for key in attribute_keys:
+                mp_attr = mp.meteringpointattribute_set.filter(key=key).first()
+                if mp_attr is None:
+                    data_row.append("-")
+                else:
+                    data_row.append(mp_attr.value)  # todo escape delimiter Char
+
+            data_row.append("-")  # Source Points, tbd
+            mp_data = mp.energy_data(
+                timestamps=timestamps, interval_length=interval_length
+            )[1]
+            for value in mp_data:
+                data_row.append(value)
+
+            data.append(data_row)
+
+        for mp in self.virtual_metering_points.all():
+            data_row = []
+
+            data_row.append(mp.name)  # label/name
+            data_row.append(mp.unit.unit if mp.unit is not None else "-")  # unit
+            data_row.append(mp.pk)  # ID
+
+            for key in attribute_keys:
+                mp_attr = mp.virtualmeteringpointattribute_set.filter(key=key).first()
+                if mp_attr is None:
+                    data_row.append("-")
+                else:
+                    data_row.append(mp_attr.value)  # todo escape delimiter Char
+
+            data_row.append("-")  # Source Points, tbd
+            mp_data = mp.energy_data(
+                timestamps=timestamps, interval_length=interval_length
+            )[1]
+            for value in mp_data:
+                data_row.append(value)
+
+            data.append(data_row)
+
+        return header, data
+
+    def make_file(self, header, data):
+
+        # filename = self.export_file_name
+
+        if self.file_format == "csv":
+            pass
+
+        elif self.file_format == "xlsx":
+            pass
+
+        else:
+            pass
+
+    def make_buffer(self, header, data):
+        buffer = io.StringIO()
+        if self.file_format == "csv":
+            return self.generate_csv(buffer, header, data)
+
+        if self.file_format == "xlsx":
+
+            buffer = io.BytesIO()
+            return self.generate_xlsx(buffer, header, data)
+
+        if self.file_format == "json":
+            return self.generate_json(buffer, header, data)
+
+        return None
+
+    def generate_csv(self, buffer, header, data):
+        """ """
+
+        csv_writer = csv.writer(buffer)
+
+        # write the header
+        csv_writer.writerow(header)
+
+        # write the data
+        for row in range(len(data)):
+            csv_writer.writerow(data[row])
+
+        return buffer
+
+    def generate_xlsx(self, buffer, header, data):
+        """ """
+        workbook = xlsxwriter.Workbook(buffer)
+        worksheet = workbook.add_worksheet()
+        energy_format = workbook.add_format(
+            {"num_format": "#,##0.00", "align": "right"}
+        )  # todo get from settings or model
+        date_format = workbook.add_format(
+            {"num_format": "dd.mmm.yyyy HH:MM", "align": "right"}
+        )  # todo get from settings or model
+
+        # write the header
+        value_col = None
+        for col_num, value in enumerate(header):
+            if type(value) is datetime:
+                worksheet.write(0, col_num, value, date_format)
+                if value_col is None:
+                    value_col = col_num
+            else:
+                worksheet.write(0, col_num, value)
+
+        # write the data
+        for row_num, row_values in enumerate(data):
+            for col_num, value in enumerate(row_values):
+                if col_num >= value_col:
+                    worksheet.write(row_num + 1, col_num, value, energy_format)
+                else:
+                    worksheet.write(row_num + 1, col_num, value)
+
+        workbook.close()
+        return buffer
+
+    def generate_json(self, buffer, header, data):
+        """ """
+
+        csv_writer = csv.writer(buffer)
+
+        # write the header
+        csv_writer.writerow(header)
+
+        # write the data
+        for row in range(len(data)):
+            csv_writer.writerow(data[row])
+
+        return buffer
+
+
+"""
+class EnergyCost(models.Model):
+
+"""
+
+"""
+class Script(models.Model):
+    pass
+"""
+
+"""
+class LoadProfileMin(LoadProfileProto):
+    pass
+
+class LoadProfileMinValue(LoadProfileValueProto):
+    load_profile = models.ForeignKey(LoadProfileMin, on_delete=models.CASCADE)
+
+class LoadProfileMax(LoadProfileProto):
+    pass
+
+class LoadProfileMaxValue(LoadProfileValueProto):
+    load_profile = models.ForeignKey(LoadProfileMax, on_delete=models.CASCADE)
+"""
+
+
+"""
+calculation token
+    energy meter, metering point, virtual metering point, factor, operator, bracket
+"""
