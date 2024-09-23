@@ -83,7 +83,11 @@ def calculate_timestamps(
 
 
 def metering_point_data(
-    meterin_point_id, start_datetime, end_datetime, interval_length
+    meterin_point_id,
+    start_datetime,
+    end_datetime,
+    interval_length,
+    use_precalulated_values=False,
 ):
     mp = MeteringPoint.objects.filter(pk=meterin_point_id).first()
     if mp is None:
@@ -95,12 +99,21 @@ def metering_point_data(
         )
         return timestamps, np.zeros(timestamps.shape)
 
-    timestamps, energy = mp.energy_data(start_datetime, end_datetime, interval_length)
+    timestamps, energy = mp.energy_data(
+        start_datetime,
+        end_datetime,
+        interval_length,
+        use_precalulated_values=use_precalulated_values,
+    )
     return timestamps, energy
 
 
 def virtual_metering_point_data(
-    virtual_metering_point_id, start_datetime, end_datetime, interval_length
+    virtual_metering_point_id,
+    start_datetime,
+    end_datetime,
+    interval_length,
+    use_precalulated_values=False,
 ):
     vmp = VirtualMeteringPoint.objects.filter(pk=virtual_metering_point_id).first()
     if vmp is None:
@@ -112,7 +125,12 @@ def virtual_metering_point_data(
         )
         return timestamps, np.zeros(timestamps.shape)
 
-    return vmp.eval(start_datetime, end_datetime, interval_length)
+    return vmp.eval(
+        start_datetime,
+        end_datetime,
+        interval_length,
+        use_precalulated_values=use_precalulated_values,
+    )
 
 
 class CalculationSyntaxError(Exception):
@@ -120,7 +138,12 @@ class CalculationSyntaxError(Exception):
 
 
 def eval_calculation(
-    calculation, start_datetime, end_datetime, interval_length=60 * 60, timestamps=None
+    calculation,
+    start_datetime,
+    end_datetime,
+    interval_length=60 * 60,
+    timestamps=None,
+    use_precalulated_values=False,
 ):
 
     if start_datetime is None and end_datetime is None and timestamps is None:
@@ -154,12 +177,20 @@ def eval_calculation(
 
     def mp_data(mp_id):
         return metering_point_data(
-            mp_id, start_datetime, end_datetime, interval_length
+            mp_id,
+            start_datetime,
+            end_datetime,
+            interval_length,
+            use_precalulated_values=use_precalulated_values,
         )[1]
 
     def vmp_data(vmp_id):
         return virtual_metering_point_data(
-            vmp_id, start_datetime, end_datetime, interval_length
+            vmp_id,
+            start_datetime,
+            end_datetime,
+            interval_length,
+            use_precalulated_values=use_precalulated_values,
         )[1]
 
     try:
@@ -167,6 +198,7 @@ def eval_calculation(
             calculation, functions={"mp": mp_data, "vmp": vmp_data}
         ) * np.ones(timestamps.shape)
     except Exception:
+        print(traceback.format_exc())
         return timestamps, np.zeros(timestamps.shape)
 
     return timestamps, result
@@ -458,6 +490,7 @@ class MeteringPoint(MeteringPointProto):
         interval_length=60 * 60 * 24,
         use_load_profile=False,
         timestamps=None,
+        use_precalulated_values=True,
     ):
 
         if start_datetime is None and end_datetime is None and timestamps is None:
@@ -479,6 +512,38 @@ class MeteringPoint(MeteringPointProto):
             return [], []
 
         data = np.zeros((timestamps.size - 1,))
+
+        if use_precalulated_values and interval_length in list(
+            CalculatedMeteringPointEnergyDeltaInterval.objects.all().values_list(
+                "interval_length", flat=True
+            )
+        ):
+            calculated_deltas = CalculatedMeteringPointEnergyDelta.objects.filter(
+                metering_point=self,
+                reading_date__gte=start_datetime,
+                reading_date__lte=end_datetime,
+                interval_length__interval_length=interval_length,
+            )
+            delta_timestamps = np.asarray(
+                [
+                    item.timestamp()
+                    for item in calculated_deltas.values_list("reading_date", flat=True)
+                ]
+            )
+            delta_energy = np.asarray(
+                [
+                    float(item)
+                    for item in calculated_deltas.values_list("energy_delta", flat=True)
+                ]
+            )
+
+            for i in range(1, len(timestamps)):
+                if timestamps[i] in delta_timestamps:
+                    data[i - 1] = delta_energy[
+                        np.where(timestamps[i] == delta_timestamps)
+                    ]
+
+            return timestamps[1:], data
 
         for meter in self.energymeter_set.all():
             _, energy_data = meter.energy_data(timestamps=timestamps)
@@ -595,12 +660,19 @@ class VirtualMeteringPoint(MeteringPointProto):
     def __str__(self):
         return f"{self.name} ({self.utility.name})"
 
-    def eval(self, start_datetime, end_datetime, interval_length=60 * 60):
+    def eval(
+        self,
+        start_datetime,
+        end_datetime,
+        interval_length=60 * 60,
+        use_precalulated_values=False,
+    ):
         return eval_calculation(
             calculation=self.calculation,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
             interval_length=interval_length,
+            use_precalulated_values=use_precalulated_values,
         )
 
     def energy_data(
@@ -610,6 +682,7 @@ class VirtualMeteringPoint(MeteringPointProto):
         interval_length=60 * 60 * 24,
         use_load_profile=False,
         timestamps=None,
+        use_precalulated_values=True,
     ):
 
         if start_datetime is None and end_datetime is None and timestamps is None:
@@ -630,11 +703,47 @@ class VirtualMeteringPoint(MeteringPointProto):
         if start_datetime >= end_datetime:
             return [], []
 
+        if use_precalulated_values and interval_length in list(
+            CalculatedMeteringPointEnergyDeltaInterval.objects.all().values_list(
+                "interval_length", flat=True
+            )
+        ):
+            calculated_deltas = (
+                CalculatedVirtualMeteringPointEnergyDelta.objects.filter(
+                    virtual_metering_point=self,
+                    reading_date__gte=start_datetime,
+                    reading_date__lte=end_datetime,
+                    interval_length__interval_length=interval_length,
+                )
+            )
+            delta_timestamps = np.asarray(
+                [
+                    item.timestamp()
+                    for item in calculated_deltas.values_list("reading_date", flat=True)
+                ]
+            )
+            delta_energy = np.asarray(
+                [
+                    float(item)
+                    for item in calculated_deltas.values_list("energy_delta", flat=True)
+                ]
+            )
+            data = np.zeros((timestamps.size - 1,))
+
+            for i in range(1, len(timestamps)):
+                if timestamps[i] in delta_timestamps:
+                    data[i - 1] = delta_energy[
+                        np.where(timestamps[i] == delta_timestamps)
+                    ]
+
+            return timestamps[1:], data
+
         return eval_calculation(
             calculation=self.calculation,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
             interval_length=interval_length,
+            use_precalulated_values=use_precalulated_values,
         )
 
     def regex_calculation(self, token):
@@ -694,6 +803,7 @@ class VirtualMeteringPoint(MeteringPointProto):
             CalculatedVirtualMeteringPointEnergyDelta.objects.filter(
                 virtual_metering_point=self, interval_length=interval_length
             ).delete()
+
             new_items = []
             for i in range(len(data)):
                 new_items.append(
