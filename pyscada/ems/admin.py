@@ -3,10 +3,10 @@ import traceback
 from datetime import datetime
 
 import pytz
+from django.conf import settings
 from django.contrib import admin
 from django.db.models import Case, Count, When
 from django.http import HttpResponse
-from django.utils import timezone
 from django.utils.safestring import mark_safe
 
 from pyscada.admin import admin_site
@@ -53,6 +53,7 @@ from pyscada.ems.models import (
 )
 
 logger = logging.getLogger(__name__)
+tz_local = pytz.timezone(settings.TIME_ZONE)
 
 
 def add_spaces(wstr, sp_pos):
@@ -116,10 +117,13 @@ def get_enegrymeter_ordering_by_meteringpoint_attribute_key(key_id):
 @admin.action(description="Update calculated energy deltas")
 def update_calculated_energy_deltas(modeladmin, request, queryset):
     for mp in queryset.all():
-        start_year = mp.get_first_datetime(default=timezone.now()).year
+        datetime_now = tz_local.localize(datetime.now())
+        start_year = mp.get_first_datetime(default=datetime_now).year
+        start_datetime = datetime(start_year, 1, 1, 0, 0, tzinfo=tz_local)
+        end_datetime = mp.get_last_datetime(default=datetime_now)
         mp.update_calculated_energy_deltas(
-            start_datetime=datetime(start_year, 1, 1, 0, 0, tzinfo=pytz.utc),
-            end_datetime=mp.get_last_datetime(default=timezone.now()),
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
         )
 
 

@@ -14,11 +14,12 @@ import xlsxwriter
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db import models
-from django.utils import timezone
 from scipy.interpolate import interp1d
 from simpleeval import simple_eval
 
 from pyscada.models import Unit
+
+tz_local = pytz.timezone(settings.TIME_ZONE)
 
 
 def calculate_timestamps(
@@ -134,8 +135,8 @@ def eval_calculation(
             include_end=True,
         )
     else:
-        start_datetime = datetime.fromtimestamp(timestamps[0], pytz.timezone("utc"))
-        end_datetime = datetime.fromtimestamp(timestamps[-1], pytz.timezone("utc"))
+        start_datetime = pytz.utc.localize(datetime.utcfromtimestamp(timestamps[0]))
+        end_datetime = pytz.utc.localize(datetime.utcfromtimestamp(timestamps[-1]))
 
         timestamps = calculate_timestamps(
             start_datetime=start_datetime,
@@ -471,8 +472,8 @@ class MeteringPoint(MeteringPointProto):
                 include_end=True,
             )
         else:
-            start_datetime = datetime.fromtimestamp(timestamps[0], pytz.timezone("utc"))
-            end_datetime = datetime.fromtimestamp(timestamps[-1], pytz.timezone("utc"))
+            start_datetime = pytz.utc.localize(datetime.utcfromtimestamp(timestamps[0]))
+            end_datetime = pytz.utc.localize(datetime.utcfromtimestamp(timestamps[-1]))
 
         if start_datetime >= end_datetime:
             return [], []
@@ -508,7 +509,7 @@ class MeteringPoint(MeteringPointProto):
                     CalculatedMeteringPointEnergyDelta(
                         interval_length=interval_length,
                         energy_delta=data[i],
-                        reading_date=datetime.fromtimestamp(timestamps[i]).replace(
+                        reading_date=datetime.utcfromtimestamp(timestamps[i]).replace(
                             tzinfo=pytz.utc
                         ),
                         metering_point=self,
@@ -522,7 +523,9 @@ class MeteringPoint(MeteringPointProto):
 
         first_datetime = default
         for meter in self.energymeter_set.all():
-            first_datetime_tmp = meter.get_first_datetime(default=timezone.now())
+            first_datetime_tmp = meter.get_first_datetime(
+                default=tz_local.localize(datetime.now())
+            )
 
             if type(first_datetime) is datetime:
                 if first_datetime_tmp < first_datetime:
@@ -621,8 +624,8 @@ class VirtualMeteringPoint(MeteringPointProto):
                 include_end=True,
             )
         else:
-            start_datetime = datetime.fromtimestamp(timestamps[0], pytz.timezone("utc"))
-            end_datetime = datetime.fromtimestamp(timestamps[-1], pytz.timezone("utc"))
+            start_datetime = pytz.utc.localize(datetime.utcfromtimestamp(timestamps[0]))
+            end_datetime = pytz.utc.localize(datetime.utcfromtimestamp(timestamps[-1]))
 
         if start_datetime >= end_datetime:
             return [], []
@@ -697,8 +700,8 @@ class VirtualMeteringPoint(MeteringPointProto):
                     CalculatedVirtualMeteringPointEnergyDelta(
                         interval_length=interval_length,
                         energy_delta=data[i],
-                        reading_date=datetime.fromtimestamp(timestamps[i]).replace(
-                            tzinfo=pytz.timezone("UTC")
+                        reading_date=pytz.utc.localize(
+                            datetime.utcfromtimestamp(timestamps[i])
                         ),
                         virtual_metering_point=self,
                     )
@@ -711,7 +714,9 @@ class VirtualMeteringPoint(MeteringPointProto):
 
         for vmp_id in self.get_vmp_ids_from_calculation():
             vmp = VirtualMeteringPoint.objects.get(pk=int(vmp_id))
-            first_datetime_tmp = vmp.get_first_datetime(default=timezone.now())
+            first_datetime_tmp = vmp.get_first_datetime(
+                default=tz_local.localize(datetime.now())
+            )
             if type(first_datetime) is datetime:
                 if first_datetime_tmp < first_datetime:
                     first_datetime = first_datetime_tmp
@@ -720,7 +725,9 @@ class VirtualMeteringPoint(MeteringPointProto):
 
         for mp_id in self.get_mp_ids_from_calculation():
             mp = MeteringPoint.objects.get(pk=int(mp_id))
-            first_datetime_tmp = mp.get_first_datetime(default=timezone.now())
+            first_datetime_tmp = mp.get_first_datetime(
+                default=tz_local.localize(datetime.now())
+            )
             if type(first_datetime) is datetime:
                 if first_datetime_tmp < first_datetime:
                     first_datetime = first_datetime_tmp
@@ -887,8 +894,8 @@ class EnergyMeter(models.Model):
                 include_end=True,
             )
         else:
-            start_datetime = datetime.fromtimestamp(timestamps[0], pytz.timezone("utc"))
-            end_datetime = datetime.fromtimestamp(timestamps[-1], pytz.timezone("utc"))
+            start_datetime = pytz.utc.localize(datetime.utcfromtimestamp(timestamps[0]))
+            end_datetime = pytz.utc.localize(datetime.utcfromtimestamp(timestamps[-1]))
 
         meter_timestamps, meter_readings = self.get_readings(
             start_datetime=start_datetime, end_datetime=end_datetime
@@ -1171,11 +1178,11 @@ class DataExport(models.Model):
 
     @property
     def periode_from_local(self):
-        return self.periode_from.replace(tzinfo=pytz.timezone(settings.TIME_ZONE))
+        return self.periode_from.replace(tzinfo=tz_local)
 
     @property
     def periode_to_local(self):
-        return self.periode_to.replace(tzinfo=pytz.timezone(settings.TIME_ZONE))
+        return self.periode_to.replace(tzinfo=tz_local)
 
     @property
     def full_filename(self):
@@ -1213,7 +1220,7 @@ class DataExport(models.Model):
             # add one column per timestamp
             dp_date = (
                 pytz.timezone(target_timezone_name)
-                .fromutc(datetime.fromtimestamp(timestamp))
+                .fromutc(datetime.utcfromtimestamp(timestamp))
                 .replace(tzinfo=None)
             )
             if self.file_format == "csv":
