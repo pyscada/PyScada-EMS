@@ -1,9 +1,6 @@
 import logging
 import traceback
-from datetime import datetime
 
-import pytz
-from django.conf import settings
 from django.contrib import admin
 from django.db.models import Case, Count, When
 from django.http import HttpResponse
@@ -53,7 +50,6 @@ from pyscada.ems.models import (
 )
 
 logger = logging.getLogger(__name__)
-tz_local = pytz.timezone(settings.TIME_ZONE)
 
 
 def add_spaces(wstr, sp_pos):
@@ -117,14 +113,7 @@ def get_enegrymeter_ordering_by_meteringpoint_attribute_key(key_id):
 @admin.action(description="Update calculated energy deltas")
 def update_calculated_energy_deltas(modeladmin, request, queryset):
     for mp in queryset.all():
-        datetime_now = tz_local.localize(datetime.now())
-        start_year = mp.get_first_datetime(default=datetime_now).year
-        start_datetime = datetime(start_year, 1, 1, 0, 0, tzinfo=tz_local)
-        end_datetime = mp.get_last_datetime(default=datetime_now)
-        mp.update_calculated_energy_deltas(
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-        )
+        mp.update_calculated_energy_deltas()
 
 
 @admin.action(description="Download Data (only one selection)")
@@ -599,23 +588,23 @@ class CalculationUnitAreaPeriodAdmin(admin.ModelAdmin):
 class CalculatedMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
     list_display = (
         "id",
-        "interval_length",
+        "interval",
         "reading_date",
         "energy_delta",
         "metering_point",
     )
-    list_filter = ["interval_length", "metering_point"]
+    list_filter = ["interval", "metering_point"]
 
 
 class CalculatedVirtualMeteringPointEnergyDeltaAdmin(admin.ModelAdmin):
     list_display = (
         "id",
-        "interval_length",
+        "interval",
         "reading_date",
         "energy_delta",
         "virtual_metering_point",
     )
-    list_filter = ["interval_length", "virtual_metering_point"]
+    list_filter = ["interval", "virtual_metering_point"]
 
 
 class WeatherAdjustmentAdmin(admin.ModelAdmin):
@@ -722,17 +711,18 @@ class DataExportAdmin(admin.ModelAdmin):
         "file_format",
         "periode_from",
         "periode_to",
-        "interval_length",
-        "target_timezone",
+        "interval",
         "download",
     )
     list_display_links = [
         "id",
         "label",
     ]
-    list_filter = ("interval_length", "file_format", "include_cost", "include_coverage")
+    list_filter = ("interval", "file_format", "include_cost", "include_coverage")
     filter_horizontal = ("metering_points", "virtual_metering_points", "attribute_keys")
     actions = [download_data]
+    save_as = True
+    save_as_continue = True
 
     def download(self, obj):
         return mark_safe(f'<a href="/ems/data_export/{obj.pk}">Download</a>')
