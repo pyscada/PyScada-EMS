@@ -123,14 +123,14 @@ def data_export(request, data_export_id):
         dx = DataExport.objects.get(pk=data_export_id)
     except DataEntryForm.DoesNotExist:
         raise Http404("DataExport does not exist")
-    header, data = dx.prepare_data()
-    buffer = dx.make_buffer(header, data)
+
+    buffer = dx.make_buffer()
 
     if dx.file_format == "csv":
         content_type = "application/csv"
     elif dx.file_format == "xlsx":
         content_type = "application/xlsx"
-    elif dx.file_format == "xlsx":
+    elif dx.file_format == "json":
         content_type = "application/json"
     else:
         raise Http404("DataExport export format not supported")

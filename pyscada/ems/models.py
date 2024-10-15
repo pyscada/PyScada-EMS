@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 import csv
 import io
+import json
 import os
 import re
 import traceback
@@ -1443,6 +1444,7 @@ class DataExport(models.Model):
         header.append("label")
         header.append("unit")
         header.append("ID")
+        header.append("Model")
         attribute_keys = self.attribute_keys.all()
 
         for key in attribute_keys:
@@ -1478,6 +1480,7 @@ class DataExport(models.Model):
             data_row.append(mp.name)  # label/name
             data_row.append(mp.unit.unit if mp.unit is not None else "-")  # unit
             data_row.append(mp.pk)  # ID
+            data_row.append("mp")  # Model (mp, vmp)
 
             for key in attribute_keys:
                 mp_attr = mp.meteringpointattribute_set.filter(key=key).first()
@@ -1499,6 +1502,7 @@ class DataExport(models.Model):
             data_row.append(mp.name)  # label/name
             data_row.append(mp.unit.unit if mp.unit is not None else "-")  # unit
             data_row.append(mp.pk)  # ID
+            data_row.append("vmp")  # Model (mp, vmp)
 
             for key in attribute_keys:
                 mp_attr = mp.virtualmeteringpointattribute_set.filter(key=key).first()
@@ -1516,36 +1520,35 @@ class DataExport(models.Model):
 
         return header, data
 
-    def make_file(self, header, data):
+    def make_file(self, file_path, header=None, data=None):
+        """"""
+        buffer = self.make_buffer(header, data)
+        if buffer is None:
+            return False
 
-        # filename = self.export_file_name
+        with open(os.path.join(file_path, self.full_filename), "wb") as f:
+            f.write(buffer.getbuffer())
+        return True
+
+    def make_buffer(self, header=None, data=None):
 
         if self.file_format == "csv":
-            pass
-
-        elif self.file_format == "xlsx":
-            pass
-
-        else:
-            pass
-
-    def make_buffer(self, header, data):
-        buffer = io.StringIO()
-        if self.file_format == "csv":
-            return self.generate_csv(buffer, header, data)
+            return self.generate_csv(header, data)
 
         if self.file_format == "xlsx":
-
-            buffer = io.BytesIO()
-            return self.generate_xlsx(buffer, header, data)
+            return self.generate_xlsx(header, data)
 
         if self.file_format == "json":
-            return self.generate_json(buffer, header, data)
+            return self.generate_json(header, data)
 
         return None
 
-    def generate_csv(self, buffer, header, data):
+    def generate_csv(self, header=None, data=None):
         """ """
+        if header is None or data is None:
+            header, data = self.prepare_data()
+
+        buffer = io.StringIO()
 
         csv_writer = csv.writer(buffer)
 
@@ -1558,8 +1561,13 @@ class DataExport(models.Model):
 
         return buffer
 
-    def generate_xlsx(self, buffer, header, data):
+    def generate_xlsx(self, header=None, data=None):
         """ """
+        if header is None or data is None:
+            header, data = self.prepare_data()
+
+        buffer = io.BytesIO()
+
         workbook = xlsxwriter.Workbook(buffer)
         worksheet = workbook.add_worksheet()
         energy_format = workbook.add_format(
@@ -1594,18 +1602,24 @@ class DataExport(models.Model):
         workbook.close()
         return buffer
 
-    def generate_json(self, buffer, header, data):
+    def generate_json(self, header=None, data=None):
         """ """
+        if header is None or data is None:
+            header, data = self.prepare_data()
 
-        csv_writer = csv.writer(buffer)
+        buffer = io.StringIO()
 
-        # write the header
-        csv_writer.writerow(header)
+        output = {}
+        for row_num, row_values in enumerate(data):
+            row_key = f"{row_values[3]}_{row_values[2]}"
+            output[row_key] = {}
+            for col_num, value in enumerate(row_values):
+                if type(header[col_num]) is datetime:
+                    output[row_key][header[col_num].isoformat()] = value
+                else:
+                    output[row_key][header[col_num]] = value
 
-        # write the data
-        for row in range(len(data)):
-            csv_writer.writerow(data[row])
-
+        json.dump(output, buffer)
         return buffer
 
 
