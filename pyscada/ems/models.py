@@ -1442,6 +1442,7 @@ class DataExport(models.Model):
         # Header
         header = []
         header.append("label")
+        header.append("utility")
         header.append("unit")
         header.append("ID")
         header.append("Model")
@@ -1478,6 +1479,7 @@ class DataExport(models.Model):
             data_row = []
 
             data_row.append(mp.name)  # label/name
+            data_row.append(mp.utility.name)  #
             data_row.append(mp.unit.unit if mp.unit is not None else "-")  # unit
             data_row.append(mp.pk)  # ID
             data_row.append("mp")  # Model (mp, vmp)
@@ -1500,6 +1502,7 @@ class DataExport(models.Model):
             data_row = []
 
             data_row.append(mp.name)  # label/name
+            data_row.append(mp.utility.name)  #
             data_row.append(mp.unit.unit if mp.unit is not None else "-")  # unit
             data_row.append(mp.pk)  # ID
             data_row.append("vmp")  # Model (mp, vmp)
