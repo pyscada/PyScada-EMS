@@ -1162,6 +1162,10 @@ class EnergyReading(models.Model):
         EnergyReadingTariffRegister, blank=True, null=True, on_delete=models.CASCADE
     )
 
+    def __str__(self):
+        return f"{self.reading_date.isoformat()} {self.reading} \
+                ({self.energy_meter} {self.tariff_register})"
+
     class Meta:
         ordering = ("reading_date",)
 
