@@ -18,7 +18,7 @@ from django.db import models
 from scipy.interpolate import interp1d
 from simpleeval import simple_eval
 
-from pyscada.models import Unit
+from pyscada.models import Unit, Variable
 
 tz_local = pytz.timezone(settings.TIME_ZONE)
 
@@ -115,6 +115,43 @@ def virtual_metering_point_data(
         timestamps=timestamps,
         use_precalulated_values=use_precalulated_values,
     )
+
+
+def calculate_start_datetime(first_datetime, interval):
+
+    start_year = first_datetime.year
+    start_month = 1  # first_datetime.month
+    start_day = 1  # first_datetime.day
+    start_hour = 0
+    start_minute = 0
+    """
+    if interval.interval_length == "year" or interval.interval_length == "quater":
+        start_month = 1
+        start_day = 1
+
+    elif interval.interval_length == "month":
+        start_day = 1
+    """
+    # if interval.interval_length == "week" or interval.interval_length == "day"
+    # is the same as default values
+
+    start_datetime = datetime(
+        start_year,
+        start_month,
+        start_day,
+        start_hour,
+        start_minute,
+        tzinfo=pytz.timezone(interval.timezone),
+    )
+
+    if interval.interval_length == "week":
+        # special case start of the week shift to the previous monday as start
+        # of the week
+        # fixme this should reflect the start of the week that is
+        # supplied by the user (Sunday or Monday)
+        start_datetime = start_datetime - relativedelta(days=first_datetime.weekday())
+
+    return start_datetime
 
 
 class CalculationSyntaxError(Exception):
@@ -530,6 +567,9 @@ class MeteringPoint(MeteringPointProto):
         for meter in self.energymeter_set.all():
             _, energy_data = meter.energy_data(timestamps=timestamps)
 
+            if energy_data is None:
+                continue
+
             data += energy_data
 
         if use_load_profile:
@@ -545,58 +585,13 @@ class MeteringPoint(MeteringPointProto):
             intervals = CalculatedMeteringPointEnergyDeltaInterval.objects.all()
 
         start_datetime_in = start_datetime
+
         for interval in intervals:
+            datetime_now = pytz.timezone(interval.timezone).localize(datetime.now())
+            first_datetime = self.get_first_datetime(default=datetime_now)
+
             if start_datetime_in is None:
-                datetime_now = pytz.timezone(interval.timezone).localize(datetime.now())
-                first_datetime = self.get_first_datetime(default=datetime_now)
-                if interval.interval_length == "year":
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        1,
-                        1,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    )
-
-                elif interval.interval_length == "quater":
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        1,
-                        1,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    )
-
-                elif interval.interval_length == "week":
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        first_datetime.month,
-                        first_datetime.day,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    ) - relativedelta(days=first_datetime.weekday())
-
-                elif interval.interval_length == "day":
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        first_datetime.month,
-                        first_datetime.day,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    )
-                else:
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        first_datetime.month,
-                        first_datetime.day,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    )
+                start_datetime = calculate_start_datetime(first_datetime, interval)
 
             if end_datetime is None:
                 end_datetime = self.get_last_datetime(default=datetime_now)
@@ -615,6 +610,8 @@ class MeteringPoint(MeteringPointProto):
 
             new_items = []
             for i in range(len(data)):
+                if np.isnan(data[i]) or np.isinf(data[i]):
+                    continue
                 new_items.append(
                     CalculatedMeteringPointEnergyDelta(
                         interval=interval,
@@ -839,58 +836,13 @@ class VirtualMeteringPoint(MeteringPointProto):
             intervals = CalculatedMeteringPointEnergyDeltaInterval.objects.all()
 
         start_datetime_in = start_datetime
+
         for interval in intervals:
+            datetime_now = pytz.timezone(interval.timezone).localize(datetime.now())
+            first_datetime = self.get_first_datetime(default=datetime_now)
+
             if start_datetime_in is None:
-                datetime_now = pytz.timezone(interval.timezone).localize(datetime.now())
-                first_datetime = self.get_first_datetime(default=datetime_now)
-                if interval.interval_length == "year":
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        1,
-                        1,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    )
-
-                elif interval.interval_length == "quater":
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        1,
-                        1,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    )
-
-                elif interval.interval_length == "week":
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        first_datetime.month,
-                        first_datetime.day,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    ) - relativedelta(days=first_datetime.weekday())
-
-                elif interval.interval_length == "day":
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        first_datetime.month,
-                        first_datetime.day,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    )
-                else:
-                    start_datetime = datetime(
-                        first_datetime.year,
-                        first_datetime.month,
-                        first_datetime.day,
-                        0,
-                        0,
-                        tzinfo=pytz.timezone(interval.timezone),
-                    )
+                start_datetime = calculate_start_datetime(first_datetime, interval)
 
             if end_datetime is None:
                 end_datetime = self.get_last_datetime(default=datetime_now)
@@ -907,6 +859,8 @@ class VirtualMeteringPoint(MeteringPointProto):
 
             new_items = []
             for i in range(len(data)):
+                if np.isnan(data[i]) or np.isinf(data[i]):
+                    continue
                 new_items.append(
                     CalculatedVirtualMeteringPointEnergyDelta(
                         interval=interval,
@@ -1005,6 +959,10 @@ class EnergyMeter(models.Model):
         max_length=255, default="upcounting", choices=meter_type_choices
     )
 
+    data_source_variable = models.ForeignKey(
+        "VariableDataSource", on_delete=models.SET_NULL, null=True, blank=True
+    )
+
     def __str__(self):
         metering_point_name = self.metering_point.name if self.metering_point else "-"
         return f"{metering_point_name}({self.pk}) ({self.id_ext}, {self.id_int})"
@@ -1083,15 +1041,13 @@ class EnergyMeter(models.Model):
 
         return meter_timestamps, meter_readings
 
-    def energy_data(
+    def interp_readings(
         self,
         start_datetime=None,
         end_datetime=None,
         interval=None,
-        use_load_profile=False,
         timestamps=None,
     ):
-
         if start_datetime is None and end_datetime is None and timestamps is None:
             return [], []
 
@@ -1109,15 +1065,36 @@ class EnergyMeter(models.Model):
             return [], []
 
         meter_timestamps, meter_readings = self.get_readings(
-            start_datetime=start_datetime, end_datetime=end_datetime
+            start_datetime=start_datetime
+            - relativedelta(
+                months=1
+            ),  # fixme make dependend on difference between start and stop timestamp
+            end_datetime=end_datetime + relativedelta(months=1),
+            convert_to_upcounting=True,
         )
 
         if len(meter_readings) < 2:
-            return timestamps, np.zeros((len(timestamps) - 1,))
+            return timestamps, np.zeros((len(timestamps),))
 
-        energy_data = np.diff(np.interp(timestamps, meter_timestamps, meter_readings))
+        interp_readings = np.interp(timestamps, meter_timestamps, meter_readings)
 
-        return timestamps, energy_data
+        return timestamps, interp_readings
+
+    def energy_data(
+        self,
+        start_datetime=None,
+        end_datetime=None,
+        interval=None,
+        use_load_profile=False,
+        timestamps=None,
+    ):
+        timestamps, interp_readings = self.interp_readings(
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+            timestamps=timestamps,
+        )
+        return timestamps, np.diff(interp_readings)
 
     def check_readings(self):
         meter_timestamps, meter_readings = self.get_readings(convert_to_upcounting=True)
@@ -1320,6 +1297,32 @@ class CalculatedVirtualMeteringPointEnergyDelta(
     virtual_metering_point = models.ForeignKey(
         VirtualMeteringPoint, on_delete=models.CASCADE
     )
+
+
+"""
+class WithNoName(models.Model):
+    interval = models.ForeignKey(
+        CalculatedMeteringPointEnergyDeltaInterval, on_delete=models.CASCADE
+    )
+    interval = models.ForeignKey(
+        MeteringPoint, on_delete=models.CASCADE, null=True, blank=True
+    )
+    interval = models.ForeignKey(
+        VirtualMeteringPoint, on_delete=models.CASCADE, null=True, blank=True
+    )
+    calculation_date = models.DateTimeField(null=True, blank=True)  # timestamp
+    # of the reading
+"""
+
+
+class VariableDataSource(models.Model):
+    variable = models.ForeignKey(
+        Variable,
+        on_delete=models.CASCADE,
+    )
+
+    def __str__(self):
+        return f"{self.variable}"
 
 
 class LoadProfileProto(models.Model):

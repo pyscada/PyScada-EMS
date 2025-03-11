@@ -40,6 +40,7 @@ from pyscada.ems.models import (
     MeteringPointAttribute,
     MeteringPointLocation,
     Utility,
+    VariableDataSource,
     VirtualMeteringPoint,
     VirtualMeteringPointAttachment,
     VirtualMeteringPointAttribute,
@@ -108,6 +109,12 @@ def get_enegrymeter_ordering_by_meteringpoint_attribute_key(key_id):
         *(When(pk=id, then=pos) for pos, id in enumerate(key_ids, start=1))
     )
     return preferred
+
+
+@admin.action(description="Delete selected without conformaition!")
+def delete_item_without_confirm(modeladmin, request, queryset):
+    for item in queryset.all():
+        item.delete()
 
 
 @admin.action(description="Update calculated energy deltas")
@@ -318,10 +325,16 @@ class EnergyReadingAdmin(admin.ModelAdmin):
         "reading",
         "energy_meter",
     )
-    list_filter = ("energy_meter",)
+    list_filter = (
+        "tariff_register",
+        "energy_meter",
+    )
     inlines = [EnergyReadingCommentInline]
     save_as = True
     save_as_continue = True
+    list_per_page = 200
+    actions = [delete_item_without_confirm]
+    raw_id_fields = ("energy_meter",)
 
 
 class MeteringPointAdmin(admin.ModelAdmin):
@@ -334,7 +347,18 @@ class MeteringPointAdmin(admin.ModelAdmin):
         "utility",
         "location",
         "comment",
+        "energy_data",
     )
+
+    def energy_data(self, obj):
+        link = ", ".join(
+            [
+                f'<a href="/ems/data/mp/{obj.pk}/{interv.pk}" \
+                        target="_blank">Data {str(interv)}</a>'
+                for interv in CalculatedMeteringPointEnergyDeltaInterval.objects.all()
+            ]
+        )
+        return mark_safe(link)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -395,7 +419,15 @@ class MeteringPointAdmin(admin.ModelAdmin):
 
 
 class VirtualMeteringPointAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "utility", "category", "group", "comment")
+    list_display = (
+        "id",
+        "name",
+        "utility",
+        "category",
+        "group",
+        "comment",
+        "energy_data",
+    )
     list_display_links = ("id",)
     list_editable = ("comment",)
     list_filter = [
@@ -415,6 +447,16 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
         VirtualMeteringPointAttachmentInline,
     ]
     actions = [update_calculated_energy_deltas]
+
+    def energy_data(self, obj):
+        link = ", ".join(
+            [
+                f'<a href="/ems/data/vmp/{obj.pk}/{interv.pk}"\
+                        target="_blank">Data {str(interv)}</a>'
+                for interv in CalculatedMeteringPointEnergyDeltaInterval.objects.all()
+            ]
+        )
+        return mark_safe(link)
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
@@ -728,7 +770,12 @@ class DataExportAdmin(admin.ModelAdmin):
         return mark_safe(f'<a href="/ems/data_export/{obj.pk}">Download</a>')
 
 
+class VariableDataSourceAdmin(admin.ModelAdmin):
+    raw_id_fields = ("variable",)
+
+
 admin_site.register(EnergyMeter, EnergyMeterAdmin)
+admin_site.register(VariableDataSource, VariableDataSourceAdmin)
 admin_site.register(MeteringPoint, MeteringPointAdmin)
 admin_site.register(Address, AddressAdmin)
 admin_site.register(BuildingInfo, BuildingInfoAdmin)

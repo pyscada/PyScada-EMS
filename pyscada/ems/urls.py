@@ -10,4 +10,12 @@ urlpatterns = [
     path("ems/form/add_data/submit/<int:form_id>", ems_views.form_add_data_submit),
     path("ems/data_export/<int:data_export_id>", ems_views.data_export),
     path("ems/form/", ems_views.ems_view),
+    path(
+        "ems/data/mp/<int:meteringpoint_id>/<int:interval_id>",
+        ems_views.energy_data_mp_view,
+    ),
+    path(
+        "ems/data/vmp/<int:virtualmeteringpoint_id>/<int:interval_id>",
+        ems_views.energy_data_vmp_view,
+    ),
 ]

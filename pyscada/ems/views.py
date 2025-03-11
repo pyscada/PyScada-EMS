@@ -7,17 +7,23 @@ from uuid import uuid4
 from django.conf import settings
 from django.http import Http404, HttpResponse
 from django.template.response import TemplateResponse
-from django.views.decorators.csrf import requires_csrf_token
 
 from pyscada.core import version as core_version
-from pyscada.ems.models import DataEntryForm, DataExport
-from pyscada.hmi.views import unauthenticated_redirect
+from pyscada.ems.models import (
+    CalculatedMeteringPointEnergyDelta,
+    CalculatedMeteringPointEnergyDeltaInterval,
+    CalculatedVirtualMeteringPointEnergyDelta,
+    DataEntryForm,
+    DataExport,
+    MeteringPoint,
+    VirtualMeteringPoint,
+)
+from pyscada.hmi.views import login_required
 
 logger = logging.getLogger(__name__)
 
 
-@unauthenticated_redirect
-@requires_csrf_token
+@login_required
 def ems_view(request):
     base_template = "base.html"
     form_template = "ems_form.html"
@@ -48,8 +54,7 @@ def ems_view(request):
     return TemplateResponse(request, form_template, context)
 
 
-@unauthenticated_redirect
-@requires_csrf_token
+@login_required
 def form_add_data(request, form_id):
     base_template = "base.html"
     form_template = "ems_form.html"
@@ -81,8 +86,7 @@ def form_add_data(request, form_id):
     return TemplateResponse(request, form_template, context)
 
 
-@unauthenticated_redirect
-@requires_csrf_token
+@login_required
 def form_add_data_submit(request, form_id):
     base_template = "base.html"
     form_template = "ems_form_submit.html"
@@ -116,12 +120,11 @@ def form_add_data_submit(request, form_id):
     return TemplateResponse(request, form_template, context)
 
 
-@unauthenticated_redirect
-@requires_csrf_token
+@login_required
 def data_export(request, data_export_id):
     try:
         dx = DataExport.objects.get(pk=data_export_id)
-    except DataEntryForm.DoesNotExist:
+    except DataExport.DoesNotExist:
         raise Http404("DataExport does not exist")
 
     buffer = dx.make_buffer()
@@ -144,7 +147,86 @@ def data_export(request, data_export_id):
     )
 
 
-@unauthenticated_redirect
-@requires_csrf_token
+@login_required
 def energy_data_export_xls(request, meteringpoint_ids):
     raise Http404("DataEntryForm does not exist")
+
+
+@login_required
+def energy_data_mp_view(request, meteringpoint_id, interval_id):
+    base_template = "base.html"
+    form_template = "energy_data_view.html"
+    add_context = {}
+
+    javascript_files_list = []
+    css_files_list = []
+    try:
+        dx = CalculatedMeteringPointEnergyDelta.objects.filter(
+            metering_point_id=meteringpoint_id, interval_id=interval_id
+        )
+        mp = MeteringPoint.objects.get(pk=meteringpoint_id)
+        interval = CalculatedMeteringPointEnergyDeltaInterval.objects.get(
+            pk=interval_id
+        )
+
+    except MeteringPoint.DoesNotExist:
+        raise Http404("MeteringPoint does not exist")
+    except CalculatedMeteringPointEnergyDeltaInterval.DoesNotExist:
+        raise Http404("CalculatedMeteringPointEnergyDeltaInterval does not exist")
+
+    context = {
+        "base_html": base_template,
+        "include": [],
+        "form": dx,
+        "mp": mp,
+        "unit": mp.unit.unit if mp.unit is not None else "-",
+        "interval": interval,
+        "user": request.user,
+        "version_string": core_version,
+        "javascript_files_list": javascript_files_list,
+        "css_files_list": css_files_list,
+    }
+
+    context.update(add_context)
+
+    return TemplateResponse(request, form_template, context)
+
+
+@login_required
+def energy_data_vmp_view(request, virtualmeteringpoint_id, interval_id):
+    base_template = "base.html"
+    form_template = "energy_data_view.html"
+    add_context = {}
+
+    javascript_files_list = []
+    css_files_list = []
+    try:
+        dx = CalculatedVirtualMeteringPointEnergyDelta.objects.filter(
+            virtual_metering_point_id=virtualmeteringpoint_id, interval_id=interval_id
+        )
+        vmp = VirtualMeteringPoint.objects.get(pk=virtualmeteringpoint_id)
+        interval = CalculatedMeteringPointEnergyDeltaInterval.objects.get(
+            pk=interval_id
+        )
+
+    except VirtualMeteringPoint.DoesNotExist:
+        raise Http404("VirtualMeteringPoint does not exist")
+    except CalculatedMeteringPointEnergyDeltaInterval.DoesNotExist:
+        raise Http404("CalculatedMeteringPointEnergyDeltaInterval does not exist")
+
+    context = {
+        "base_html": base_template,
+        "include": [],
+        "form": dx,
+        "mp": vmp,
+        "unit": vmp.unit.unit,
+        "interval": interval,
+        "user": request.user,
+        "version_string": core_version,
+        "javascript_files_list": javascript_files_list,
+        "css_files_list": css_files_list,
+    }
+
+    context.update(add_context)
+
+    return TemplateResponse(request, form_template, context)
