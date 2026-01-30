@@ -9,8 +9,7 @@ class Migration(migrations.Migration):
         (
             "ems",
             (
-                "0003_rename_calulatedmeteringpointenergydelta"
-                "_calculatedmeteringpointenergydelta_and_more"
+                "0003_rename_calulatedmeteringpointenergydelta_calculatedmeteringpointenergydelta_and_more"
             ),
         ),
     ]

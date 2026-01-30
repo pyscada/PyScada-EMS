@@ -10,8 +10,7 @@ class Migration(migrations.Migration):
         ("pyscada", "0110_variable_readable"),
         (
             "ems",
-            "0009_rename_interval_length_calculatedmeteringpointenergydelta_interval_\
-                    and_more",
+            "0009_rename_interval_length_calculatedmeteringpointenergydelta_interval_and_more",
         ),
     ]
 
