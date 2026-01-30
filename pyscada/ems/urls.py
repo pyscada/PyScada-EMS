@@ -18,4 +18,5 @@ urlpatterns = [
         "ems/data/vmp/<int:virtualmeteringpoint_id>/<int:interval_id>",
         ems_views.energy_data_vmp_view,
     ),
+    path("ems/data/metering_points/", ems_views.metering_point_view),
 ]

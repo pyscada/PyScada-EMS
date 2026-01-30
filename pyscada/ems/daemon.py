@@ -71,7 +71,6 @@ class PreCalculationBackgroundTask(Process):
                         pk__in=self.vmp_ids_to_calculate
                     )
                 ]
-
         self.dt_set = 0.1
         return True
 
@@ -93,7 +92,7 @@ class PreCalculationBackgroundTask(Process):
         self.dt_set = 0.1
         mp.update_calculated_energy_deltas()
         self.next_message = (
-            f"Calculated {mp.name}, {len(self.mp_to_calculate)} to calulate"
+            f"Calculated {mp.name}, {len(self.mp_to_calculate)} to calculate"
         )
 
         return 1, None

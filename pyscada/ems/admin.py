@@ -6,6 +6,13 @@ from django.db.models import Case, Count, When
 from django.http import HttpResponse
 from django.utils.safestring import mark_safe
 
+try:
+    from django_admin_multi_select_filter.filters import (
+        ExclusiveMultiSelectRelatedFieldListFilter,
+    )
+except (ImportError, ModuleNotFoundError):
+    ExclusiveMultiSelectRelatedFieldListFilter = None
+
 from pyscada.admin import admin_site
 from pyscada.ems.models import (
     Address,
@@ -38,6 +45,7 @@ from pyscada.ems.models import (
     MeteringPoint,
     MeteringPointAttachment,
     MeteringPointAttribute,
+    MeteringPointCategory,
     MeteringPointLocation,
     Utility,
     VariableDataSource,
@@ -123,6 +131,12 @@ def update_calculated_energy_deltas(modeladmin, request, queryset):
         mp.update_calculated_energy_deltas()
 
 
+@admin.action(description="Import data from data source")
+def import_data_from_data_source(modeladmin, request, queryset):
+    for mp in queryset.all():
+        mp.import_data_from_data_source()
+
+
 @admin.action(description="Download Data (only one selection)")
 def download_data(modeladmin, request, queryset):
     dx = queryset.first()
@@ -169,10 +183,33 @@ class IsSubMeterFilter(admin.SimpleListFilter):
         return queryset
 
 
+class HasCommentFilter(admin.SimpleListFilter):
+    title = "has comment"
+    parameter_name = "has comment"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("Yes", "Yes"),
+            ("No", "No"),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        queryset = queryset.annotate(
+            energyreadingcomment_count=Count("energyreadingcomment")
+        )
+        if value == "Yes":
+            return queryset.filter(energyreadingcomment_count__gt=0)
+        elif value == "No":
+            return queryset.exclude(energyreadingcomment_count__gt=0)
+        return queryset
+
+
 class EnergyMeterInline(admin.StackedInline):
     model = EnergyMeter
     extra = 0
     show_change_link = True
+    readonly_fields = ["first_reading", "last_reading"]
 
 
 class EnergyMeterAttributeInline(admin.StackedInline):
@@ -268,16 +305,18 @@ class EnergyMeterAdmin(admin.ModelAdmin):
         "id_int",
         "factor",
         "comment",
-        "in_operation_from",
-        "in_operation_to",
+        "_in_operation_from",
+        "_in_operation_to",
     )
-    list_display_links = ("id",)
+    list_display_links = ("id", "id_ext")
     list_editable = ("comment",)
-    list_filter = ["metering_point__utility"]
+    list_filter = ["metering_point__utility", "meter_type"]
+    readonly_fields = ["first_reading", "last_reading"]
     search_fields = ["id_ext", "comment", "metering_point__name"]
     save_as = True
     save_as_continue = True
     inlines = [EnergyMeterAttributeInline, EnergyMeterAttachmentInline]
+    actions = [import_data_from_data_source]
 
     def dp_count(self, instance):
         return EnergyReading.objects.filter(energy_meter_id=instance.pk).count()
@@ -314,6 +353,7 @@ class EnergyMeterAdmin(admin.ModelAdmin):
                 ).first()
 
             list_display += (get_mp_attribute_key,)
+
     except Exception:  # fixme
         logger.warning(traceback.format_exc())
 
@@ -327,12 +367,12 @@ class EnergyReadingAdmin(admin.ModelAdmin):
     )
     list_filter = (
         "tariff_register",
-        "energy_meter",
+        # "energy_meter",
     )
     inlines = [EnergyReadingCommentInline]
     save_as = True
     save_as_continue = True
-    list_per_page = 200
+    list_per_page = 50
     actions = [delete_item_without_confirm]
     raw_id_fields = ("energy_meter",)
 
@@ -346,18 +386,20 @@ class MeteringPointAdmin(admin.ModelAdmin):
         "energy_meters",
         "utility",
         "location",
+        "mp_categories",
         "comment",
         "energy_data",
     )
 
     def energy_data(self, obj):
-        link = ", ".join(
-            [
-                f'<a href="/ems/data/mp/{obj.pk}/{interv.pk}" \
-                        target="_blank">Data {str(interv)}</a>'
-                for interv in CalculatedMeteringPointEnergyDeltaInterval.objects.all()
-            ]
-        )
+        interv = CalculatedMeteringPointEnergyDeltaInterval.objects.first()
+        if interv is None:
+            return ""
+
+        link = f'<a href="/ems/data/mp/{obj.pk}/{interv.pk}" \
+            target="_blank">View Data</a><br>'
+        link += f'<a href="/pyscada_admin/ems/energyreading/?metering_point__id_exact={obj.pk}" target="_blank">Energy Readings</a>'  # noqa: E501 FIXME add reverse lockup for the URL
+
         return mark_safe(link)
 
     def get_queryset(self, request):
@@ -378,6 +420,10 @@ class MeteringPointAdmin(admin.ModelAdmin):
         return ", ".join(
             list(instance.energymeter_set.all().values_list("id_ext", flat=True))
         )
+
+    @admin.display
+    def mp_categories(self, instance):
+        return ", ".join(list(instance.categories.all().values_list("name", flat=True)))
 
     def dp_count(self, instance):
         return instance.dp_count()
@@ -400,10 +446,22 @@ class MeteringPointAdmin(admin.ModelAdmin):
     except Exception:
         logger.warning(traceback.format_exc())
 
-    list_display_links = ("id",)
+    list_display_links = ("id", "name")
     list_editable = ("comment",)
-    filter_horizontal = ("higher_level_metering_points",)
-    list_filter = ["utility", IsSubMeterFilter, "location", "energy_price"]
+    filter_horizontal = ("higher_level_metering_points", "categories")
+
+    list_filter = [
+        "utility",
+        (
+            ("categories", ExclusiveMultiSelectRelatedFieldListFilter)
+            if ExclusiveMultiSelectRelatedFieldListFilter is not None
+            else "categories"
+        ),
+        IsSubMeterFilter,
+        "location",
+        "energy_price",
+    ]
+
     search_fields = [
         "name",
         "comment",
@@ -415,7 +473,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
         MeteringPointAttributeInline,
         MeteringPointAttachmentInline,
     ]
-    actions = [update_calculated_energy_deltas]
+    actions = [update_calculated_energy_deltas, import_data_from_data_source]
 
 
 class VirtualMeteringPointAdmin(admin.ModelAdmin):
@@ -423,18 +481,23 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
         "id",
         "name",
         "utility",
-        "category",
+        "mp_categories",
         "group",
         "comment",
         "energy_data",
     )
-    list_display_links = ("id",)
+    list_display_links = ("id", "name")
     list_editable = ("comment",)
     list_filter = [
         "utility",
-        "category",
+        (
+            ("categories", ExclusiveMultiSelectRelatedFieldListFilter)
+            if ExclusiveMultiSelectRelatedFieldListFilter is not None
+            else "categories"
+        ),
         "group",
     ]
+    filter_horizontal = ("categories",)
 
     search_fields = [
         "name",
@@ -449,14 +512,17 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
     actions = [update_calculated_energy_deltas]
 
     def energy_data(self, obj):
-        link = ", ".join(
-            [
-                f'<a href="/ems/data/vmp/{obj.pk}/{interv.pk}"\
-                        target="_blank">Data {str(interv)}</a>'
-                for interv in CalculatedMeteringPointEnergyDeltaInterval.objects.all()
-            ]
-        )
+        interv = CalculatedMeteringPointEnergyDeltaInterval.objects.first()
+        if interv is None:
+            return ""
+        link = f'<a href="/ems/data/vmp/{obj.pk}/{interv.pk}" \
+        target="_blank">View Data</a>'
+
         return mark_safe(link)
+
+    @admin.display
+    def mp_categories(self, instance):
+        return ", ".join(list(instance.categories.all().values_list("name", flat=True)))
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj=obj, change=change, **kwargs)
@@ -528,13 +594,6 @@ class BuildingInfoAdmin(admin.ModelAdmin):
         "periode_to",
         "cost_unit",
         "owner",
-        "area_net",
-        "area_HNF_1_6",
-        "area_NNF_7",
-        "area_FF_8",
-        "area_VF_9",
-        "nb_floors",
-        "nb_rooms",
     )
     list_display_links = ("id", "cost_unit")
     # list_editable = ()
@@ -675,9 +734,7 @@ class AttachmentAdmin(admin.ModelAdmin):
 
 
 class AttachmentCategoryAdmin(admin.ModelAdmin):
-
-    def has_module_permission(self, request):
-        return False
+    pass
 
 
 class AttachmentGroupAdmin(admin.ModelAdmin):
@@ -746,6 +803,12 @@ class EnergyReadingTariffRegisterAdmin(admin.ModelAdmin):
         return False
 
 
+class MeteringPointCategoryAdmin(admin.ModelAdmin):
+
+    def has_module_permission(self, request):
+        return False
+
+
 class DataExportAdmin(admin.ModelAdmin):
     list_display = (
         "id",
@@ -784,6 +847,7 @@ admin_site.register(Building, BuildingAdmin)
 admin_site.register(MeteringPointLocation, MeteringPointLocationAdmin)
 admin_site.register(EnergyReading, EnergyReadingAdmin)
 admin_site.register(EnergyReadingTariffRegister, EnergyReadingTariffRegisterAdmin)
+admin_site.register(MeteringPointCategory, MeteringPointCategoryAdmin)
 
 admin_site.register(Utility, UtilityAdmin)
 

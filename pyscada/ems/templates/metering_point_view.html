@@ -1,0 +1,20 @@
+<h3>Meteringpoints</h2>
+<table class="table table-hover table-condensed">
+    <thead>
+    <tr>
+    {% for key_name in header_columns %}
+        <th>{{ key_name }}</th>
+    {% endfor %}
+    </tr>
+    </thead>
+    <tbody>
+{% for row_data in data %}
+    <tr>
+    {% for key, value in row_data.items %}
+        <td>{{ value }}</th>
+    {% endfor %}
+    </tr>
+{% endfor %}
+    </tbody>
+</table>
+{{ post }}

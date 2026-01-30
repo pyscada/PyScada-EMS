@@ -1,22 +1,54 @@
-<h3>Meteringpoint: {{ mp.name }}</h2>
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block head_custom_css %}
+td {
+  text-align: center;
+}
+tr:hover {
+    background-color: coral;
+}
+{% endblock %}
+
+{% block top_menu_left %}
+{% for link in links %}
+<li {{ link.active }} ><a href="{{ link.url }}" class="hidden-xs">{{ link.text }}</a></li>
+{% endfor %}
+
+{% endblock %}
+
+{% block content %}
+<h3>{{ meteringpoint_type }}: {{ mp.name }}</h2>
 <p>Interval: {{ interval }}</p>
-<p>Number of Points: {{ form.count }}</p>
+<p>Number of Points: {{ point_count }}</p>
+<p>Last Update: {{ last_update }}</p>
+<p>Unit: {{ unit }}</p>
+<p>Utility: {{ utility}}</p>
+<p>Categories: {{ categories }}</p>
 <table class="table table-hover table-condensed">
     <thead>
-    <tr>
-        <th>Date</th>
-        <th>Value</th>
-        <th>Unit</th>
-    </tr>
+        <tr>
+            <th>Period {{ date_type }}</th>
+{% for year in col_headers %}
+            <th style="text-align: right;">{{ year }}</th>
+{% endfor %}
+        </tr>
     </thead>
     <tbody>
-{% for item in form.all %}
+{% for key,row in rows.items %}
     <tr>
-        <td>{{ item.reading_date }}</th>
-        <td>{{ item.energy_delta }}</td>
-        <td>{{ unit }}</td>
+        <td>{{ key }}</td>
+    {% for item in row.values %}
+        {% if item %}
+        <!-- {{ item.reading_date }} -->
+        <td style="text-align: right;">{{ item.energy_delta|intcomma }}</td>
+        {% else %}
+        <td></td>
+        {% endif %}
+    {% endfor %}
     </tr>
 {% endfor %}
     </tbody>
 </table>
 {{ post }}
+{% endblock %}
