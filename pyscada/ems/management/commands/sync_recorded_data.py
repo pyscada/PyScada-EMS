@@ -72,7 +72,7 @@ class Command(BaseCommand):
                 close_old_connections()
                 # read the Unit of the Data from the current Line and convert it to a
                 # factor for kWh conversion
-                reading_date = datetime.fromtimestamp(data[i][0] / 1000).replace(
+                reading_date = datetime.fromtimestamp(data[i][0]).replace(
                     tzinfo=pytz.timezone("CET")
                 )
                 reading = data[i][1] * factor
@@ -124,7 +124,7 @@ class Command(BaseCommand):
                     )
                     print(
                         f"added new readings: \
-                         {min((i+max_add), len(er_data))/len(er_data)*100}"
+                         {(min((i+max_add), len(er_data))/len(er_data)*100):1.2f}"
                     )
                 print(f"added new readings: {len(er_data)}")
 

@@ -62,6 +62,13 @@ class PreCalculationBackgroundTask(Process):
                 self.mp_to_calculate += [
                     mp for mp in VirtualMeteringPoint.objects.all()
                 ]
+            elif self.vmp_ids_to_calculate == "outdated":
+                self.mp_to_calculate += [
+                    mp
+                    for mp in VirtualMeteringPoint.objects.filter(
+                        last_precalculation_update__isnull=True
+                    )  # noqa: E501
+                ]
             elif self.vmp_ids_to_calculate == "none":
                 pass
             else:

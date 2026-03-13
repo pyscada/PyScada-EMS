@@ -2,11 +2,11 @@ from datetime import datetime
 
 from django.test import TestCase
 
-from pyscada.ems.models import caluculate_timestamps
+from pyscada.ems.models import calculate_timestamps
 
 
 # Create your tests here.
-class CaluculateTimestampsTest(TestCase):
+class CalculateTimestampsTest(TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -19,7 +19,7 @@ class CaluculateTimestampsTest(TestCase):
         )
 
     def test_defaults(self):
-        result = caluculate_timestamps(
+        result = calculate_timestamps(
             start_datetime=self.start_date, end_datetime=self.end_date
         )
         self.assertEqual(result[0], self.start_date.timestamp())

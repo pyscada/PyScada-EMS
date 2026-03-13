@@ -17,7 +17,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "type", choices=["mp", "vmp", "all"], type=str, default="all"
+            "type", choices=["mp", "vmp", "all", "outdated"], type=str, default="all"
         )
         parser.add_argument(
             "id",
@@ -27,11 +27,13 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        workers = 10
+        workers_max = 5
         if options["id"] >= 0:
             tic = time()
             if options["type"] == "all":
                 print("argument id not supported for type == 'all'")
+            if options["type"] == "outdated":
+                print("argument id not supported for type == 'outdated'")
 
             if options["type"] == "mp":
                 mp = MeteringPoint.objects.filter(pk=options["id"]).first()
@@ -51,13 +53,22 @@ class Command(BaseCommand):
                 return
 
         if options["type"] in ["mp", "all"] and options["id"] == -1:
-            nb_mp = MeteringPoint.objects.count()
+            metering_points = MeteringPoint.objects.all()
+
+        if options["type"] == "outdated" and options["id"] == -1:
+            metering_points = MeteringPoint.objects.filter(
+                last_precalculation_update__isnull=True
+            )  # noqa: E501
+
+        if options["type"] in ["mp", "all", "outdated"] and options["id"] == -1:
+            nb_mp = metering_points.count()
             mp_i = 1
             mp_ids_to_calculate = []
+            workers = int(max(1, min(workers_max, nb_mp / 50)))
             for worker_id in range(workers):
                 mp_ids_to_calculate.append([])
             worker = 0
-            for mp in MeteringPoint.objects.all():
+            for mp in metering_points:
 
                 print(f"add mp {mp_i}/{nb_mp}: {mp.name} ", end="", flush=True)
                 # mp.update_calculated_energy_deltas()
@@ -70,12 +81,6 @@ class Command(BaseCommand):
                 process_class_kwargs = json.dumps(
                     {"mp_ids_to_calculate": mp_ids_to_calculate[worker_id]}
                 )
-                if len(process_class_kwargs) > 400:
-                    print(
-                        f"process_class_kwargs to long \
-                                ({len(process_class_kwargs)}>400)"
-                    )
-                    continue
 
                 bp = BackgroundProcess(
                     pid=0,
@@ -89,6 +94,18 @@ class Command(BaseCommand):
 
         if options["type"] in ["vmp", "all"] and options["id"] == -1:
             process_class_kwargs = json.dumps({"vmp_ids_to_calculate": "all"})
+            bp = BackgroundProcess(
+                pid=0,
+                label="update precalculated vmp",
+                enabled=True,
+                parent_process_id=1,
+                process_class="pyscada.ems.daemon.PreCalculationBackgroundTask",
+                process_class_kwargs=process_class_kwargs,
+            )
+            bp.save()
+
+        if options["type"] == "outdated" and options["id"] == -1:
+            process_class_kwargs = json.dumps({"vmp_ids_to_calculate": "outdated"})
             bp = BackgroundProcess(
                 pid=0,
                 label="update precalculated vmp",

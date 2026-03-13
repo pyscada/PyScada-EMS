@@ -7,22 +7,25 @@ from uuid import uuid4
 
 import pytz
 from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.http import Http404, HttpResponse
 from django.template.response import TemplateResponse
 
 from pyscada.core import version as core_version
+from pyscada.ems.admin import DataImportAdmin, admin_site
 from pyscada.ems.models import (
     CalculatedMeteringPointEnergyDelta,
     CalculatedMeteringPointEnergyDeltaInterval,
     CalculatedVirtualMeteringPointEnergyDelta,
     DataEntryForm,
     DataExport,
+    DataImport,
     MeteringPoint,
     VirtualMeteringPoint,
     calculate_start_datetime,
     calculate_timestamps,
 )
-from pyscada.hmi.views import login_required
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +152,27 @@ def data_export(request, data_export_id):
             "Content-Disposition": 'attachment; filename="%s"' % dx.full_filename,
         },
     )
+
+
+@login_required
+def data_import(request, data_import_id):
+    try:
+        di = DataImport.objects.get(pk=data_import_id)
+    except DataImport.DoesNotExist:
+        raise Http404(f"DataImport with id {data_import_id} does not exist")
+
+    buffer = request.FILES.get("file", None)
+    if buffer is None:
+        messages.error(request, "Imported failed empty buffer")
+        dia = DataImportAdmin(DataImport, admin_site)
+        logger.error(request)
+        return dia.changelist_view(request)
+
+    lines_imported = di.import_csv(buffer)
+    messages.success(request, f"Imported {lines_imported} lines of Data")
+    # return HttpResponseRedirect("/pyscada_admin/ems/dataimport/")
+    dia = DataImportAdmin(DataImport, admin_site)
+    return dia.changelist_view(request)
 
 
 @login_required

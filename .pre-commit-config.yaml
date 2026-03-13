@@ -3,7 +3,7 @@ repos:
     rev: 24.4.2
     hooks:
     - id: black
-      exclude: \.py-tpl$
+      exclude: (^.*\b(migrations)\b.*|\.py-tpl)$
   - repo: https://github.com/adamchainz/blacken-docs
     rev: 1.18.0
     hooks:

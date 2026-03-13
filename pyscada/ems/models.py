@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
+import ast
 import csv
 import io
 import json
+import logging
+import operator as op
 import os
 import re
 import traceback
@@ -16,11 +19,29 @@ from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db import models
 from scipy.interpolate import interp1d
-from simpleeval import simple_eval
+from simpleeval import DEFAULT_OPERATORS, SimpleEval
 
-from pyscada.models import Unit, Variable
+from pyscada.models import BackgroundProcess, Unit, Variable
 
+logger = logging.getLogger(__name__)
 tz_local = pytz.timezone(settings.TIME_ZONE)
+
+# FIXME add custom simple_eval with save mul
+
+
+def simple_eval(expr, operators=None, functions=None, names=None, allowed_attrs=None):
+    """Simply evaluate an expression"""
+    if operators is None:
+        operators = DEFAULT_OPERATORS.copy()
+
+    operators[ast.Mult] = op.mul  # replace multiply
+    s = SimpleEval(
+        operators=operators,
+        functions=functions,
+        names=names,
+        allowed_attrs=allowed_attrs,
+    )
+    return s.eval(expr)
 
 
 def factor_from_unit(unit):
@@ -303,6 +324,7 @@ class BuildingInfo(models.Model):
 
 class CalculationUnitArea(models.Model):
     name = models.CharField(max_length=255, default="", blank=True)
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
         return f"{self.name}"
@@ -336,7 +358,7 @@ class CalculationUnitArea(models.Model):
                 # entry is missing
                 internal_item = CalculationUnitAreaPart(
                     key=external_item.key,
-                    value=external_item.value,
+                    area=external_item.area,
                     calculation_unit_area_period=external_item.calculation_unit_area_period,  # noqa: E501
                     calculation_unit_area=self,
                     unit=external_item.unit,
@@ -348,6 +370,98 @@ class CalculationUnitArea(models.Model):
                 )
 
             internal_item.save()
+
+    def area_by_part(self, timestamps, part):
+        """ """
+        area_timestamps = [
+            (
+                timestamps[0]
+                if item is None
+                else datetime.fromordinal(item.toordinal()).timestamp()
+            )
+            for item in self.calculationunitareapart_set.filter(key=part).values_list(
+                "calculation_unit_area_period__valid_from", flat=True
+            )
+        ]
+        area_data = [
+            float(item)
+            for item in self.calculationunitareapart_set.filter(key=part).values_list(
+                "area", flat=True
+            )
+        ]
+        if len(area_data) == 0 or len(area_timestamps) == 0:
+            return np.ones(len(timestamps)) * np.nan
+
+        # fixme handle area changes within a timestamps interval
+        return interp1d(
+            area_timestamps, area_data, kind="previous", fill_value="extrapolate"
+        )(timestamps)
+
+    def areas(self, timestamps):
+        output = {}
+        for part in CalculationUnitAreaPart.objects.all():
+            output[part.key.name] = self.area_by_part(timestamps, part.key)
+
+        return output
+
+    def get_first_datetime(self, key, default):
+        get_first_datetime = (
+            self.calculationunitareapart_set.filter(key=key)
+            .order_by("calculation_unit_area_period__valid_from")
+            .first()
+        )
+        if get_first_datetime is None:
+            return default
+        return get_first_datetime.calculation_unit_area_period.valid_from
+
+    def update_calculated_areas(
+        self, start_datetime=None, end_datetime=None, intervals=None
+    ):
+        if intervals is None:
+            intervals = CalculatedMeteringPointEnergyDeltaInterval.objects.all()
+
+        start_datetime_in = start_datetime
+        for interval in intervals:
+            datetime_now = pytz.timezone(interval.timezone).localize(datetime.now())
+
+            CalculatedCalculationUnitArea.objects.filter(
+                calculation_unit_area=self, interval=interval
+            ).delete()
+
+            for part_key in CalculationUnitAreaPartKey.objects.all():
+                first_datetime = self.get_first_datetime(part_key, default=datetime_now)
+
+                if start_datetime_in is None:
+                    start_datetime = calculate_start_datetime(first_datetime, interval)
+
+                if end_datetime is None:
+                    end_datetime = datetime_now
+
+                timestamps = calculate_timestamps(
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    interval=interval,
+                )
+                data = self.area_by_part(timestamps=timestamps, part=part_key)
+                new_items = []
+                for i in range(len(data)):
+                    if np.isnan(data[i]) or np.isinf(data[i]):
+                        continue
+                    new_items.append(
+                        CalculatedCalculationUnitArea(
+                            interval=interval,
+                            area=data[i],
+                            area_date=pytz.utc.localize(
+                                datetime.utcfromtimestamp(timestamps[i])
+                            ),
+                            calculation_unit_area=self,
+                            key=part_key,
+                        )
+                    )
+                CalculatedCalculationUnitArea.objects.bulk_create(new_items)
+
+        self.last_precalculation_update = tz_local.localize(datetime.now())
+        self.save()
 
     class Meta:
         ordering = ["name"]
@@ -361,27 +475,50 @@ class CalculationUnitAreaAttribute(Attribute):
 
 class CalculationUnitAreaPeriod(models.Model):
     label = models.CharField(max_length=255, blank=True, null=True)
-    valid_from = models.DateField(null=True, blank=True)
-    valid_to = models.DateField(
-        null=True, blank=True
-    )  # will be ignored for now and deleted in the future
+    valid_from = models.DateField()
 
     def __str__(self):
-        return f"{self.label} {self.valid_from} - {self.valid_to}"
+        return f"{self.label} {self.valid_from}"
 
 
-class CalculationUnitAreaPart(FloatAttribute):
+class CalculationUnitAreaPartKey(ListElement):
+    pass
+
+
+class CalculationUnitAreaPart(models.Model):
+    key = models.ForeignKey(
+        CalculationUnitAreaPartKey, on_delete=models.CASCADE, null=True
+    )
+    area = models.FloatField(default=0)
+
     calculation_unit_area_period = models.ForeignKey(
         CalculationUnitAreaPeriod, on_delete=models.CASCADE
     )
     calculation_unit_area = models.ForeignKey(
         CalculationUnitArea, on_delete=models.CASCADE
     )
-    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, blank=True, null=True)
 
     def __str__(self):
-        unit = self.unit.unit if self.unit is not None else "-"
-        return f"{self.key}: {self.value} {unit}"
+        unit = (
+            self.calculation_unit_area.unit.unit
+            if self.calculation_unit_area.unit is not None
+            else "-"
+        )
+        return f"{self.key}: {self.area} {unit}"
+
+
+class CalculatedCalculationUnitArea(models.Model):
+    """this is a cache table for the area information"""
+
+    interval = models.ForeignKey(
+        "CalculatedMeteringPointEnergyDeltaInterval", on_delete=models.CASCADE
+    )
+    calculation_unit_area = models.ForeignKey(
+        CalculationUnitArea, on_delete=models.CASCADE
+    )
+    key = models.ForeignKey(CalculationUnitAreaPartKey, on_delete=models.CASCADE)
+    area = models.FloatField()
+    area_date = models.DateTimeField(db_index=True)  # timestamp of the validdity
 
 
 class EnergyPrice(models.Model):
@@ -455,8 +592,8 @@ class MeteringPointProto(models.Model):
     name = models.CharField(max_length=255, blank=True, default="")
     utility = models.ForeignKey(Utility, on_delete=models.CASCADE)
     comment = models.CharField(max_length=255, default="", blank=True)
-    _in_operation_from = models.DateField(null=True, blank=True)
-    _in_operation_to = models.DateField(null=True, blank=True)
+    _in_operation_from = models.DateTimeField(null=True, blank=True)
+    _in_operation_to = models.DateTimeField(null=True, blank=True)
     unit = models.ForeignKey(Unit, on_delete=models.SET_NULL, blank=True, null=True)
     last_precalculation_update = models.DateTimeField(null=True, blank=True)
     categories = models.ManyToManyField(MeteringPointCategory, blank=True)
@@ -695,7 +832,7 @@ class MeteringPoint(MeteringPointProto):
                 default=tz_local.localize(datetime.now())
             )
 
-            if type(first_datetime) is datetime:
+            if type(first_datetime) is datetime and first_datetime.tzinfo is not None:
                 if first_datetime_tmp < first_datetime:
                     first_datetime = first_datetime_tmp
             else:
@@ -743,6 +880,23 @@ class MeteringPoint(MeteringPointProto):
                 vmps.append(vmp)
 
         return vmps
+
+    def start_precalculation_background_process(self, mp_ids=None):
+        if mp_ids is None:
+            mp_ids = [self.pk]
+        process_class_kwargs = json.dumps({"mp_ids_to_calculate": mp_ids})
+        bp = BackgroundProcess(
+            pid=0,
+            label="update precalculated mp",
+            enabled=True,
+            parent_process_id=1,
+            process_class="pyscada.ems.daemon.PreCalculationBackgroundTask",
+            process_class_kwargs=process_class_kwargs,
+        )
+        bp.save()
+
+    def energy_reading_report(self, first_date, last_date):
+        pass
 
     class Meta:
         ordering = ("name",)
@@ -908,7 +1062,7 @@ class VirtualMeteringPoint(MeteringPointProto):
             ) * np.ones((len(timestamps) - 1))
 
         except Exception:
-            print(traceback.format_exc())
+            logger.error(f"{self} eval failed {traceback.format_exc()}")
             return timestamps, np.zeros((len(timestamps) - 1))
 
         return timestamps, result
@@ -1200,6 +1354,20 @@ class VirtualMeteringPoint(MeteringPointProto):
 
         return vmps
 
+    def start_precalculation_background_process(self, vmp_ids=None):
+        if vmp_ids is None:
+            vmp_ids = [self.pk]
+        process_class_kwargs = json.dumps({"vmp_ids_to_calculate": vmp_ids})
+        bp = BackgroundProcess(
+            pid=0,
+            label="update precalculated vmp",
+            enabled=True,
+            parent_process_id=1,
+            process_class="pyscada.ems.daemon.PreCalculationBackgroundTask",
+            process_class_kwargs=process_class_kwargs,
+        )
+        bp.save()
+
     class Meta:
         ordering = ("name",)
 
@@ -1212,8 +1380,8 @@ class EnergyMeter(models.Model):
     id_ext = models.CharField(max_length=255, blank=True)
     id_int = models.CharField(max_length=255, blank=True)
     comment = models.CharField(max_length=255, default="", blank=True)
-    _in_operation_from = models.DateField(null=True, blank=True)
-    _in_operation_to = models.DateField(null=True, blank=True)
+    _in_operation_from = models.DateTimeField(null=True, blank=True)
+    _in_operation_to = models.DateTimeField(null=True, blank=True)
     metering_point = models.ForeignKey(
         MeteringPoint, on_delete=models.CASCADE, null=True, blank=True
     )
@@ -1248,6 +1416,45 @@ class EnergyMeter(models.Model):
         related_name="energyreading_last",
     )
 
+    def save(self, **kwargs):
+        if self.pk is None:
+            # special case for 1. model save
+            super().save(**kwargs)  # Call the "real" save() method.
+        self.last_reading = self.energyreading_set.last()
+        super().save(**kwargs)  # Call the "real" save() method.
+
+        # write the initial value to the EnergyReadings
+        if self.initial_value is None:
+            # initial reading is nessesary to procced
+            return
+
+        if self.in_operation_from is None:
+            # in_operation_from is nessesary to procced
+            return
+
+        if (
+            self.energyreading_set.first() is not None
+            and self.energyreading_set.first().reading_date == self.in_operation_from
+        ):
+            # initial value is already there
+            return
+
+        # FIXME handle change of in_operation_from
+
+        er = EnergyReading(
+            reading_date=self.in_operation_from,
+            reading=self.initial_value,
+            energy_meter=self,
+        )
+        objs = EnergyReading.objects.bulk_create(
+            [er]
+        )  # direct save would trigger a recursion loop
+        self.metering_point.last_precalculation_update = None
+        self.metering_point.save()
+        self.first_reading = objs[0]
+
+        super().save(**kwargs)
+
     def __str__(self):
         metering_point_name = self.metering_point.name if self.metering_point else "-"
         return f"{metering_point_name}({self.pk}) ({self.id_ext}, {self.id_int})"
@@ -1256,6 +1463,9 @@ class EnergyMeter(models.Model):
     def in_operation_from(self):
         if self._in_operation_from is not None:
             return self._in_operation_from
+
+        if self.metering_point is None:
+            return
 
         if self.metering_point._in_operation_from is not None:
             return self.metering_point._in_operation_from
@@ -1266,6 +1476,9 @@ class EnergyMeter(models.Model):
     def in_operation_to(self):
         if self._in_operation_to is not None:
             return self._in_operation_to
+
+        if self.metering_point is None:
+            return
 
         if self.metering_point._in_operation_to is not None:
             return self.metering_point._in_operation_to
@@ -1562,6 +1775,7 @@ class EnergyReading(models.Model):
         self.energy_meter.metering_point.last_precalculation_update = None
         self.energy_meter.last_reading = None
         self.energy_meter.first_reading = None
+        self.energy_meter.save()
         self.energy_meter.metering_point.save()
 
     def delete(self, **kwargs):
@@ -1576,6 +1790,40 @@ class EnergyReading(models.Model):
         self.energy_meter.metering_point.save()
 
         super().delete(**kwargs)  # Call the "real" save() method.
+
+    def to_influx_point_dict(self):
+        """returns a dict for data storeige in a influxdb
+        usage: Point.from_dict(self.to_influx_point_dict**)
+        """
+        influx_dict = {
+            "meaurement": f"{type(self).__module__}.{type(self).__name__}",
+            "tags": {
+                "meter_type": self.energy_meter.meter_type,
+                "energy_meter_ext_id": self.energy_meter.id_ext,
+                "value_class": "FLOAT64",
+                "unit": str(self.energy_meter.metering_point.unit),
+                "tariff_register": str(self.tariff_register),
+                "name": f"mp-{self.metering_point.name}",
+            },
+            "fields": {
+                "id": self.pk,
+                "energy_meter_id": self.energy_meter.pk,
+                "metering_point_id": self.energy_meter.metering_point_id,
+                "value": float(self.reading),
+            },
+            "time": self.reading_date,
+        }
+        # FIXME add comment
+        return {
+            "dictionary": influx_dict,
+            "write_precision": "s",
+            "field_types": {
+                "id": "uint",
+                "energy_meter_id": "uint",
+                "metering_point_id": "uint",
+                "value": "float",
+            },
+        }
 
     class Meta:
         ordering = ("reading_date",)
@@ -1739,6 +1987,35 @@ class CalculatedMeteringPointEnergyDeltaProto(models.Model):
 class CalculatedMeteringPointEnergyDelta(CalculatedMeteringPointEnergyDeltaProto):
     metering_point = models.ForeignKey(MeteringPoint, on_delete=models.CASCADE)
 
+    def to_influx_point_dict(self):
+        """returns a dict for data storige in a influxdb
+        usage: Point.from_dict(self.to_influx_point_dict**)
+        """
+        influx_dict = {
+            "meaurement": f"{type(self).__module__}.{type(self).__name__}",
+            "tags": {
+                "interval": str(self.interval),
+                "value_class": "FLOAT64",
+                "unit": str(self.metering_point.unit),
+                "name": self.metering_point.name,
+            },
+            "fields": {
+                "id": self.pk,
+                "metering_point_id": self.metering_point_id,
+                "value": float(self.energy_delta),
+            },
+            "time": self.reading_date,
+        }
+        return {
+            "dictionary": influx_dict,
+            "write_precision": "s",
+            "field_types": {
+                "id": "uint",
+                "metering_point_id": "uint",
+                "value": "float",
+            },
+        }
+
 
 class CalculatedVirtualMeteringPointEnergyDelta(
     CalculatedMeteringPointEnergyDeltaProto
@@ -1746,6 +2023,35 @@ class CalculatedVirtualMeteringPointEnergyDelta(
     virtual_metering_point = models.ForeignKey(
         VirtualMeteringPoint, on_delete=models.CASCADE
     )
+
+    def to_influx_point_dict(self):
+        """returns a dict for data storige in a influxdb
+        usage: Point.from_dict(self.to_influx_point_dict**)
+        """
+        influx_dict = {
+            "meaurement": f"{type(self).__module__}.{type(self).__name__}",
+            "tags": {
+                "interval": str(self.interval),
+                "value_class": "FLOAT64",
+                "unit": str(self.virtual_metering_point.unit),
+                "name": self.virtual_metering_point.name,
+            },
+            "fields": {
+                "id": self.pk,
+                "virtual_metering_point_id": self.virtual_metering_point_id,
+                "value": float(self.energy_delta),
+            },
+            "time": self.reading_date,
+        }
+        return {
+            "dictionary": influx_dict,
+            "write_precision": "s",
+            "field_types": {
+                "id": "uint",
+                "virtual_metering_point_id": "uint",
+                "value": "float",
+            },
+        }
 
 
 """
@@ -1839,6 +2145,7 @@ class DataExport(models.Model):
 
     metering_points = models.ManyToManyField("MeteringPoint", blank=True)
     virtual_metering_points = models.ManyToManyField("VirtualMeteringPoint", blank=True)
+    categories = models.ManyToManyField("MeteringPointCategory", blank=True)
     attribute_keys = models.ManyToManyField("AttributeKey", blank=True)
     include_cost = models.BooleanField(help_text="add a column with the energy cost")
     include_coverage = models.BooleanField(
@@ -1932,7 +2239,12 @@ class DataExport(models.Model):
                 header.append(dp_date)
 
         data = []
-        for mp in self.metering_points.all():
+        meteringpoints = self.metering_points.all()
+        for categorie in self.categories.all():
+            meteringpoints = meteringpoints.union(categorie.meteringpoint_set.all())
+        # meteringpoints = meteringpoints.distinct()
+
+        for mp in meteringpoints:
             data_row = []
 
             data_row.append(mp.name)  # label/name
@@ -1958,7 +2270,14 @@ class DataExport(models.Model):
 
             data.append(data_row)
 
-        for mp in self.virtual_metering_points.all():
+        virtualmeteringpoints = self.virtual_metering_points.all()
+        for categorie in self.categories.all():
+            virtualmeteringpoints = virtualmeteringpoints.union(
+                categorie.virtualmeteringpoint_set.all()
+            )  # noqa: E501
+        # virtualmeteringpoints = virtualmeteringpoints.distinct()
+
+        for mp in virtualmeteringpoints:
             data_row = []
 
             data_row.append(mp.name)  # label/name
@@ -2087,6 +2406,120 @@ class DataExport(models.Model):
 
         json.dump(output, buffer)
         return buffer
+
+
+class DataImport(models.Model):
+    label = models.CharField(max_length=255)
+    energy_meter = models.ForeignKey(EnergyMeter, on_delete=models.CASCADE)
+
+    last_import = models.DateTimeField(null=True, blank=True)
+
+    file_format_choices = (("csv", "CSV"),)
+    file_format = models.CharField(max_length=255, choices=file_format_choices)
+    timezone_choices = [(item, item) for item in pytz.all_timezones]
+    source_timezone = models.CharField(
+        max_length=255, default="UTC", choices=timezone_choices
+    )
+    csv_skiprows = models.PositiveSmallIntegerField(default=0)
+    csv_time_col_nb = models.PositiveSmallIntegerField(default=1)
+    csv_time_col_format = models.CharField(
+        max_length=255,
+        default="%i",
+        help_text="isoformat: %i, otherwise strptime parse str",
+    )
+
+    csv_value_col_nb = models.PositiveSmallIntegerField(default=2)
+    csv_value_format = models.CharField(max_length=20, default="%f")
+    csv_value_scaling_factor = models.FloatField(default=1.0)
+    csv_delimiter = models.CharField(max_length=2, default=";")
+    csv_decimal_separator = models.CharField(max_length=2, default=".")
+
+    def import_file(self, file_handle):
+        status = False
+        if self.file_format == "csv":
+            try:
+                status = self.import_csv(file_handle)
+            except:  # noqa: E722
+                status = False
+
+        if status:
+            self.last_import = tz_local.localize(datetime.now())
+            self.save()
+
+        return status
+
+    def import_csv(self, string_io_buffer):
+
+        converters = None
+        if self.csv_decimal_separator == ",":
+            converters = {}
+            converters[self.csv_value_col_nb - 1] = lambda s: float(
+                s.replace(b".", b"").replace(b",", b".")
+            )
+        elif self.csv_decimal_separator != ".":
+            converters = {}
+            converters[self.csv_value_col_nb - 1] = lambda s: float(
+                s.replace(self.csv_decimal_separator.encode(), b".")
+            )
+
+        csv_data = np.loadtxt(
+            string_io_buffer,
+            skiprows=self.csv_skiprows,
+            delimiter=self.csv_delimiter,
+            dtype=str,
+            quotechar='"',
+            converters=converters,
+        )
+
+        if len(csv_data.shape) == 1:
+            rows = 1
+        else:
+            rows = csv_data.shape[0]
+        er_data = []
+        last_reading = self.energy_meter.last_reading
+
+        for ii in range(rows):
+            if rows == 1:
+                # handle special case: only one Row of new Data, which results
+                # to a 1-d array
+                row = csv_data
+            else:
+                row = csv_data[ii, :]
+            if len(row) < self.csv_value_col_nb:
+                continue
+            if len(row) < self.csv_time_col_nb:
+                continue
+            if self.csv_time_col_format == "%i":
+                reading_date = datetime.fromisoformat(
+                    row[self.csv_time_col_nb - 1]
+                ).replace(tzinfo=pytz.timezone(self.source_timezone))
+            elif self.csv_time_col_format == "%":
+                reading_date = datetime.fromtimestamp(
+                    float(row[self.csv_time_col_nb - 1])
+                ).replace(tzinfo=pytz.timezone(self.source_timezone))
+            else:
+                reading_date = datetime.strptime(
+                    row[self.csv_time_col_nb - 1], self.csv_value_format
+                ).replace(tzinfo=pytz.timezone(self.source_timezone))
+
+            reading = (
+                float(row[self.csv_value_col_nb - 1]) * self.csv_value_scaling_factor
+            )
+            if last_reading is not None and last_reading.reading_date >= reading_date:
+                continue
+            er = EnergyReading(
+                reading_date=reading_date,
+                reading=reading,
+                energy_meter=self.energy_meter,
+            )
+            er_data.append(er)
+
+        EnergyReading.objects.bulk_create(er_data)
+        self.energy_meter.update_reading_dates()
+        self.energy_meter.metering_point.last_precalculation_update = None
+        self.energy_meter.metering_point.save()
+        self.energy_meter.metering_point.reset_related_last_precalculation_update_status()  # noqa: E501
+        return len(er_data)
 
 
 """

@@ -1,9 +1,10 @@
 import logging
 import traceback
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.db.models import Case, Count, When
 from django.http import HttpResponse
+from django.template import RequestContext, Template
 from django.utils.safestring import mark_safe
 
 try:
@@ -33,6 +34,7 @@ from pyscada.ems.models import (
     DataEntryForm,
     DataEntryFormElement,
     DataExport,
+    DataImport,
     EnergyMeter,
     EnergyMeterAttachment,
     EnergyMeterAttribute,
@@ -127,8 +129,18 @@ def delete_item_without_confirm(modeladmin, request, queryset):
 
 @admin.action(description="Update calculated energy deltas")
 def update_calculated_energy_deltas(modeladmin, request, queryset):
-    for mp in queryset.all():
-        mp.update_calculated_energy_deltas()
+    if queryset.count() <= 10:
+        for mp in queryset.all():
+            mp.start_precalculation_background_process()
+    else:
+        queryset.first().start_precalculation_background_process(
+            [mp.pk for mp in queryset.all()]
+        )
+    messages.success(
+        request,
+        "The Precalculation for the requested MeteringPoints has been started in a Background Process, this will take some time to finish!",  # noqa: E501
+    )
+    # return HttpResponseRedirect("/pyscada_admin/pyscada/backgroundprocess/")
 
 
 @admin.action(description="Import data from data source")
@@ -363,16 +375,16 @@ class EnergyReadingAdmin(admin.ModelAdmin):
         "id",
         "reading_date",
         "reading",
-        "energy_meter",
+        "energy_meter_id",
     )
-    list_filter = (
-        "tariff_register",
-        # "energy_meter",
-    )
+    # list_filter = (
+    #    "tariff_register",
+    #    # "energy_meter",
+    # )
     inlines = [EnergyReadingCommentInline]
     save_as = True
     save_as_continue = True
-    list_per_page = 50
+    list_per_page = 10
     actions = [delete_item_without_confirm]
     raw_id_fields = ("energy_meter",)
 
@@ -382,13 +394,14 @@ class MeteringPointAdmin(admin.ModelAdmin):
         "id",
         "dp_count",
         "name",
+        "energy_meters",
+        "energy_data",
         "is_sub_meter",
         "energy_meters",
         "utility",
         "location",
         "mp_categories",
         "comment",
-        "energy_data",
     )
 
     def energy_data(self, obj):
@@ -398,7 +411,7 @@ class MeteringPointAdmin(admin.ModelAdmin):
 
         link = f'<a href="/ems/data/mp/{obj.pk}/{interv.pk}" \
             target="_blank">View Data</a><br>'
-        link += f'<a href="/pyscada_admin/ems/energyreading/?metering_point__id_exact={obj.pk}" target="_blank">Energy Readings</a>'  # noqa: E501 FIXME add reverse lockup for the URL
+        # link += f'<a href="/pyscada_admin/ems/energyreading/?metering_point__id_exact={obj.pk}" target="_blank">Energy Readings</a>'  # noqa: E501 FIXME add reverse lockup for the URL
 
         return mark_safe(link)
 
@@ -480,11 +493,11 @@ class VirtualMeteringPointAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "name",
+        "energy_data",
         "utility",
         "mp_categories",
         "group",
         "comment",
-        "energy_data",
     )
     list_display_links = ("id", "name")
     list_editable = ("comment",)
@@ -678,7 +691,7 @@ class CalculationUnitAreaAdmin(admin.ModelAdmin):
 
 
 class CalculationUnitAreaPeriodAdmin(admin.ModelAdmin):
-    list_display = ("id", "label", "valid_from", "valid_to")
+    list_display = ("id", "label", "valid_from")
 
     inlines = []
 
@@ -824,13 +837,103 @@ class DataExportAdmin(admin.ModelAdmin):
         "label",
     ]
     list_filter = ("interval", "file_format", "include_cost", "include_coverage")
-    filter_horizontal = ("metering_points", "virtual_metering_points", "attribute_keys")
+    filter_horizontal = (
+        "metering_points",
+        "virtual_metering_points",
+        "categories",
+        "attribute_keys",
+    )
     actions = [download_data]
     save_as = True
     save_as_continue = True
 
     def download(self, obj):
         return mark_safe(f'<a href="/ems/data_export/{obj.pk}">Download</a>')
+
+
+class DataImportAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "label",
+        "file_format",
+        "upload",
+        "last_import",
+    )
+    list_display_links = [
+        "id",
+        "label",
+    ]
+    fieldsets = [
+        (
+            None,
+            {
+                "fields": [
+                    "label",
+                    "file_format",
+                    "source_timezone",
+                    "energy_meter",
+                    "last_import",
+                ]
+            },
+        ),
+        (
+            "CSV",
+            {
+                "classes": ["collapse"],
+                "fields": [
+                    "csv_skiprows",
+                    "csv_time_col_nb",
+                    "csv_time_col_format",
+                    "csv_value_col_nb",
+                    "csv_value_format",
+                    "csv_value_scaling_factor",
+                    "csv_delimiter",
+                    "csv_decimal_separator",
+                ],
+            },
+        ),
+    ]
+    readonly_fields = ["last_import"]
+    save_as = True
+    save_as_continue = True
+
+    def get_queryset(self, request):
+        # Store the request in the admin instance for later use
+        self.request = request
+        # Always call the parent class's get_queryset to maintain default behavior
+        queryset = super().get_queryset(request)
+        return queryset
+
+    def upload(self, obj):
+        """
+        template = Template(
+            f'<form enctype="multipart/form-data" method="post" action="/ems/data_import/{obj.pk}">'  # noqa: E501
+            + '{% csrf_token %}><input type="file" name="file"><input type="submit" value="Upload File"></form>'  # noqa: E501
+        )
+        """
+        html = ""
+        html += (
+            f'<div id="importfile_{obj.pk}" style="text-align: right; width: 100%;">'
+        )
+        html += f'<input type="file" name="file" id="file_{obj.pk}">'
+        html += "{% csrf_token %}"
+        html += '<button type="submit" class="input_submit" style="margin-right: 15px;"'
+        html += 'onClick="(function(){'
+        html += f"let csv_file = document.getElementById('file_{obj.pk}').files[0];"
+        html += "let formData = new FormData();"
+        html += "document.getElementById('changelist-form').enctype = 'multipart/form-data';"  # noqa: E501
+        html += f"document.getElementById('changelist-form').action = '/ems/data_import/{obj.pk}';"  # noqa: E501
+        html += "formData.append('file', csv_file);"
+        html += "let csrfmiddlewaretoken = document.getElementsByName('csrfmiddlewaretoken')[0].value;"  # noqa: E501
+        html += "formData.append('csrfmiddlewaretoken', csrfmiddlewaretoken);"
+        html += f"fetch('/ems/data_import/{obj.pk}',"
+        html += "{method: 'POST', body: formData, headers: { 'Content-Type': 'multipart/form-data'}});})()"  # noqa: E501
+        html += '">Import File</button></div>'
+
+        template = Template(html)
+
+        context = RequestContext(self.request)
+        return mark_safe(template.render(context))
 
 
 class VariableDataSourceAdmin(admin.ModelAdmin):
@@ -887,3 +990,4 @@ admin_site.register(CalculatedMeteringPointEnergyDeltaInterval)
 
 admin_site.register(DataEntryForm, DataEntryFormAdmin)
 admin_site.register(DataExport, DataExportAdmin)
+admin_site.register(DataImport, DataImportAdmin)
